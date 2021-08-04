@@ -5,8 +5,8 @@ from testutils import *
 
 
 #-----------------------------------------------------------------------------
-def test_compile(general=None, layout=None, trial_types=None, respones=None, trials=None):
-    parser = ParserForTests(general=general, layout=layout, trial_types=trial_types, respones=respones, trials=trials)
+def test_compile(general=None, layout=None, trial_types=None, responses=None, trials=None):
+    parser = ParserForTests(general=general, layout=layout, trial_types=trial_types, respones=responses, trials=trials)
     compiler = CompilerForTests(parser)
     rc = compiler.compile()
     return rc, compiler
@@ -23,10 +23,26 @@ def Text(field_name, text='', **kwargs):
     kwargs['text'] = text
     return kwargs
 
+#-----------------------------------------------------------------------------
+def KbResponse(id, value, key, **kwargs):
+    kwargs['id'] = id
+    kwargs['type'] = 'key'
+    kwargs['value'] = value
+    kwargs['key'] = key
+    return kwargs
+
+#-----------------------------------------------------------------------------
+def BtnResponse(id, value, text, **kwargs):
+    kwargs['id'] = id
+    kwargs['type'] = 'button'
+    kwargs['value'] = value
+    kwargs['text'] = text
+    return kwargs
+
 
 
 #=============================================================================================
-class CompilerGeneralWsTests(unittest.TestCase):
+class GeneralWsTests(unittest.TestCase):
 
     #--------------------------------------------------------
     # Specify subj ID
@@ -136,7 +152,7 @@ class CompilerGeneralWsTests(unittest.TestCase):
 
 
 #=============================================================================================
-class CompilerLayoutTests(unittest.TestCase):
+class LayoutTests(unittest.TestCase):
 
     #--------------------------------------------------------
     def test_minimal_valid_definitions(self):
@@ -207,6 +223,30 @@ class CompilerLayoutTests(unittest.TestCase):
         self.assertFalse(compiler.errors_found)
         self.assertTrue(compiler.warnings_found)
         self.assertTrue('EXCESSIVE_COLUMN' in compiler.logger.err_codes, 'error codes: ' + ','.join(compiler.logger.err_codes.keys()))
+
+
+#=============================================================================================
+class ResponsesTests(unittest.TestCase):
+
+    #--------------------------------------------------------
+    def test_minimal_valid_definitions(self):
+        rc, compiler = test_compile(responses=[KbResponse('r1', 1, '/')])
+        self.assertEqual(0, rc)
+        self.assertFalse(compiler.errors_found)
+
+    #--------------------------------------------------------
+    def test_duplicate_keys_are_invalid(self):
+        rc, compiler = test_compile(responses=[KbResponse('r1', 1, '/'), KbResponse('r2', 2, '/')])
+        self.assertEqual(2, rc)
+        self.assertTrue(compiler.errors_found)
+        self.assertTrue('DUPLICATE_RESPONSE_KEY' in compiler.logger.err_codes, 'error codes: ' + ','.join(compiler.logger.err_codes.keys()))
+
+    #--------------------------------------------------------
+    def test_duplicate_response_ids_are_invalid(self):
+        rc, compiler = test_compile(responses=[KbResponse('r1', 1, '/'), KbResponse('r1', 2, '.')])
+        self.assertEqual(2, rc)
+        self.assertTrue(compiler.errors_found)
+        self.assertTrue('DUPLICATE_RESPONSE_ID' in compiler.logger.err_codes, 'error codes: ' + ','.join(compiler.logger.err_codes.keys()))
 
 
 

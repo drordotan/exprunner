@@ -33,7 +33,7 @@ class ParserForTests(object):
     def trial_types(self):
         return self._trial_types
 
-    def responses(self):
+    def response_modes(self):
         return self._respones
 
     def trials(self):

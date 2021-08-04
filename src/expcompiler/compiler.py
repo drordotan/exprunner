@@ -49,10 +49,15 @@ class Compiler(object):
     #-----------------------------------------------------------------------------
     def parse_experiment(self):
         exp = self._create_experiment()
-        self._parse_layouts(exp)
+        self.parse_layout(exp)
+        self.parse_responses(exp)
+        #todo self.parse_trial_type(exp)
 
         return exp
 
+    #=========================================================================================
+    # Parse the "general" tab
+    #=========================================================================================
 
     #-----------------------------------------------------------------------------
     def _create_experiment(self):
@@ -120,8 +125,12 @@ class Compiler(object):
         return tuple(df.value[df.param.str.lower() == param_name])
 
 
+    #=========================================================================================
+    # Parse the "layout" tab
+    #=========================================================================================
+
     #-----------------------------------------------------------------------------
-    def _parse_layouts(self, exp):
+    def parse_layout(self, exp):
         """
         Parse the "layout" worksheet, which contains one line per control
         """
@@ -195,6 +204,111 @@ class Compiler(object):
     #-----------------------------------------------------------------------------
     def write_experiment(self):
         return True
+
+
+    #=========================================================================================
+    # Parse the "response" sheet
+    #=========================================================================================
+
+    #-----------------------------------------------------------------------------
+    def parse_responses(self, exp):
+        """
+        Parse the "trial_type" worksheet, which contains one line per trial type
+        """
+        df = self.parser.response_modes()
+        if df is None:
+            return
+
+        for i, row in df.iterrows():
+            self._parse_one_response(exp, row, i+2, tuple(df))
+
+
+    #-----------------------------------------------------------------------------
+    def _parse_one_response(self, exp, row, rownum, col_names):
+
+        resp_id = str(row.id).lower()
+        if resp_id is None:
+            self.logger.error('Error in worksheet {}, line {}: response id was not specified, please specify it'.
+                              format(expcompiler.xlsparser.XlsParser.ws_response, rownum, row.id), 'MISSING_RESPONSE_ID')
+            self.errors_found = True
+
+        value = _nan_to_none(row.value) or row.value == ''
+        if value is None:
+            self.logger.error('Error in worksheet {}, line {}: value is empty, please specify it'.
+                              format(expcompiler.xlsparser.XlsParser.ws_response, rownum, value), 'MISSING_RESPONSE_VALUE')
+            self.errors_found = True
+            value = '(value not specified)'
+
+        resp_type = str(row.type).lower()
+        if resp_type == 'key':
+            resp = self._parse_key_response(row, rownum, resp_id, value)
+
+        elif resp_type == 'button':
+            resp = self._parse_button_response(row, rownum, resp_id, value, col_names)
+
+        else:
+            self.logger.error('Error in worksheet {}, line {}: type="{}" is unknown, only "key" and "button" are supported'.
+                              format(expcompiler.xlsparser.XlsParser.ws_response, rownum, row.type), 'INVALID_RESPONSE_TYPE')
+            self.errors_found = True
+            return None
+
+        if resp.id in exp.responses:
+            self.logger.error('Error in worksheet {}, line {}: response id="{}" was defined twice, this is invalid'.
+                              format(expcompiler.xlsparser.XlsParser.ws_response, rownum, row.id), 'DUPLICATE_RESPONSE_ID')
+            self.errors_found = True
+            return None
+
+        if resp_id is not None:
+            exp.responses[resp_id] = resp
+
+
+    #-----------------------------------------------------------------------------
+    def _parse_key_response(self, row, rownum, resp_id, value):
+        key = str(row.key).lower()
+        if key is None:
+            self.logger.error('Error in worksheet {}, line {}: key was not specified, please specify it'.
+                              format(expcompiler.xlsparser.XlsParser.ws_response, rownum), 'MISSING_RESPONSE_KEY')
+            self.errors_found = True
+            key = ''
+
+        try:
+            ord(key)
+        except TypeError:
+            self.logger.error('Error in worksheet {}, line {}: key="{}" is invalid'.
+                              format(expcompiler.xlsparser.XlsParser.ws_response, rownum, key), 'MISSING_RESPONSE_KEY')
+            self.errors_found = True
+            key = ''
+
+        return expcompiler.experiment.KbResponse(resp_id, value, key)
+
+
+    #-----------------------------------------------------------------------------
+    def _parse_button_response(self, row, rownum, resp_id, value, col_names):
+        text = row.text
+        if 'text' not in col_names and 'MISSING_BUTTON_RESPONSE_TEXT' not in self.logger.err_codes:
+            self.logger.error('Error in worksheet {}: Column "{}" was not specified, but it must exist for button responses'.
+                              format(expcompiler.xlsparser.XlsParser.ws_response, rownum), 'MISSING_BUTTON_RESPONSE_TEXT')
+            self.errors_found = True
+            text = 'N/A'
+
+        #todo x, y coordinates
+
+        return expcompiler.experiment.ClickButtonResponse(resp_id, value, text)
+
+
+    #=========================================================================================
+    # Parse the "trial_type" sheet
+    #=========================================================================================
+
+    def parse_trial_type(self, exp):
+        """
+        Parse the "trial_type" worksheet, which contains one line per trial type
+        """
+        df = self.parser.trial_type()
+        for i, row in df.iterrows():
+            ttype = self._parse_one_trial_type(exp, row, i+2)
+            if ttype is not None:
+                exp.trial_types[ttype.name] = ttype
 
 
     #=========================================================================================
