@@ -228,25 +228,90 @@ class LayoutTests(unittest.TestCase):
 #=============================================================================================
 class ResponsesTests(unittest.TestCase):
 
+    def test_resp_id_none(self):
+        rc, compiler = test_compile(responses=[KbResponse(None, 1, '/')])
+        self.assertEqual(2, rc)
+        self.assertTrue(compiler.errors_found)
+        self.assertTrue('MISSING_RESPONSE_ID' in compiler.logger.err_codes, 'error codes: ' + ','.join(compiler.logger.err_codes.keys()))
+
+    def test_resp_id_empty(self):
+        rc, compiler = test_compile(responses=[KbResponse('', 1, '/')])
+        self.assertEqual(2, rc)
+        self.assertTrue(compiler.errors_found)
+        self.assertTrue('MISSING_RESPONSE_ID' in compiler.logger.err_codes, 'error codes: ' + ','.join(compiler.logger.err_codes.keys()))
+
+    def test_resp_value_none(self):
+        rc, compiler = test_compile(responses=[KbResponse('id1', None, '/')])
+        self.assertEqual(2, rc)
+        self.assertTrue(compiler.errors_found)
+        self.assertTrue('MISSING_RESPONSE_VALUE' in compiler.logger.err_codes, 'error codes: ' + ','.join(compiler.logger.err_codes.keys()))
+
+    def test_resp_value_empty(self):
+        rc, compiler = test_compile(responses=[KbResponse('id1', '', '/')])
+        self.assertEqual(2, rc)
+        self.assertTrue(compiler.errors_found)
+        self.assertTrue('MISSING_RESPONSE_VALUE' in compiler.logger.err_codes, 'error codes: ' + ','.join(compiler.logger.err_codes.keys()))
+
+    def test_invalid_response_type(self):
+        rc, compiler = test_compile(responses=[dict(id='r1', type='badtype', value=1)])
+        self.assertEqual(2, rc)
+        self.assertTrue(compiler.errors_found)
+        self.assertTrue('INVALID_RESPONSE_TYPE' in compiler.logger.err_codes, 'error codes: ' + ','.join(compiler.logger.err_codes.keys()))
+
+
     #--------------------------------------------------------
-    def test_minimal_valid_definitions(self):
+    # Keyboard responses
+    #--------------------------------------------------------
+
+    def test_kbresp_valid(self):
         rc, compiler = test_compile(responses=[KbResponse('r1', 1, '/')])
         self.assertEqual(0, rc)
         self.assertFalse(compiler.errors_found)
 
-    #--------------------------------------------------------
-    def test_duplicate_keys_are_invalid(self):
+    def test_kbresp_key_missing_col(self):
+        rc, compiler = test_compile(responses=[dict(id='r1', type='key', value=1)])
+        self.assertEqual(2, rc)
+        self.assertTrue(compiler.errors_found)
+        self.assertTrue('MISSING_KB_RESPONSE_KEY_COL' in compiler.logger.err_codes, 'error codes: ' + ','.join(compiler.logger.err_codes.keys()))
+
+    def test_kbresp_key_empty(self):
+        rc, compiler = test_compile(responses=[KbResponse('r1', 1, '')])
+        self.assertEqual(2, rc)
+        self.assertTrue(compiler.errors_found)
+        self.assertTrue('MISSING_KB_RESPONSE_KEY' in compiler.logger.err_codes, 'error codes: ' + ','.join(compiler.logger.err_codes.keys()))
+
+    def test_kbresp_key_none(self):
+        rc, compiler = test_compile(responses=[KbResponse('r1', 1, None)])
+        self.assertEqual(2, rc)
+        self.assertTrue(compiler.errors_found)
+        self.assertTrue('MISSING_KB_RESPONSE_KEY' in compiler.logger.err_codes, 'error codes: ' + ','.join(compiler.logger.err_codes.keys()))
+
+    def test_kbresp_duplicate_keys_are_invalid(self):
         rc, compiler = test_compile(responses=[KbResponse('r1', 1, '/'), KbResponse('r2', 2, '/')])
         self.assertEqual(2, rc)
         self.assertTrue(compiler.errors_found)
         self.assertTrue('DUPLICATE_RESPONSE_KEY' in compiler.logger.err_codes, 'error codes: ' + ','.join(compiler.logger.err_codes.keys()))
 
-    #--------------------------------------------------------
-    def test_duplicate_response_ids_are_invalid(self):
+    def test_kbresp_duplicate_response_ids_are_invalid(self):
         rc, compiler = test_compile(responses=[KbResponse('r1', 1, '/'), KbResponse('r1', 2, '.')])
         self.assertEqual(2, rc)
         self.assertTrue(compiler.errors_found)
         self.assertTrue('DUPLICATE_RESPONSE_ID' in compiler.logger.err_codes, 'error codes: ' + ','.join(compiler.logger.err_codes.keys()))
+
+    #--------------------------------------------------------
+    # Button responses
+    #--------------------------------------------------------
+
+    def test_btnresp_valid(self):
+        rc, compiler = test_compile(responses=[BtnResponse('r1', 1, 'Click me')])
+        self.assertEqual(0, rc)
+        self.assertFalse(compiler.errors_found)
+
+    def test_btnresp_text_missing(self):
+        rc, compiler = test_compile(responses=[dict(id='r1', type='button', value=1)])
+        self.assertEqual(2, rc)
+        self.assertTrue(compiler.errors_found)
+        self.assertTrue('MISSING_BUTTON_RESPONSE_TEXT_COL' in compiler.logger.err_codes, 'error codes: ' + ','.join(compiler.logger.err_codes.keys()))
 
 
 

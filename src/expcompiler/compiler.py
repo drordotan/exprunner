@@ -108,7 +108,7 @@ class Compiler(object):
         elif df.shape[0] == 1:
             return df.reset_index().value[0]
         else:
-            self.logger.error('Error in worksheet {}: the parameter "{}" can only appear once but it appears 2 or more times'.
+            self.logger.error('Error in worksheet "{}": the parameter "{}" can only appear once but it appears 2 or more times'.
                               format(expcompiler.xlsparser.XlsParser.ws_general, param_name), 'MULTIPLE_PARAM_VALUES')
 
 
@@ -150,13 +150,13 @@ class Compiler(object):
             control = self._parse_text_control(row, rownum)
 
         else:
-            self.logger.error('Error in worksheet {}, line {}: type="{}" is unknown, only "text" is supported'.
+            self.logger.error('Error in worksheet "{}", line {}: type="{}" is unknown, only "text" is supported'.
                               format(expcompiler.xlsparser.XlsParser.ws_layout, rownum, row.type), 'INVALID_CONTROL_TYPE')
             self.errors_found = True
             return None
 
         if control.name in exp.layout:
-            self.logger.error('Error in worksheet {}, line {}: field_name "{}" was already used in a previous line. This line was ignored.'.
+            self.logger.error('Error in worksheet "{}", line {}: field_name "{}" was already used in a previous line. This line was ignored.'.
                               format(expcompiler.xlsparser.XlsParser.ws_layout, rownum, row.field_name), 'DUPLICATE_FIELD')
             self.errors_found = True
             return None
@@ -192,7 +192,7 @@ class Compiler(object):
                 css[css_field_name] = "" if _isempty(value) else str(value)
 
             elif rownum == 2:  # this error is issued only once per column
-                self.logger.error('Warning in worksheet {}: column name "{}" is invalid and was ignored.'.
+                self.logger.error('Warning in worksheet "{}": column name "{}" is invalid and was ignored.'.
                                   format(expcompiler.xlsparser.XlsParser.ws_layout, col_name), 'EXCESSIVE_COLUMN')
                 self.warnings_found = True
 
@@ -219,41 +219,46 @@ class Compiler(object):
         if df is None:
             return
 
+        response_keys = set()
+
         for i, row in df.iterrows():
-            self._parse_one_response(exp, row, i+2, tuple(df))
+            self._parse_one_response(exp, row, i+2, tuple(df), response_keys)
 
 
     #-----------------------------------------------------------------------------
-    def _parse_one_response(self, exp, row, rownum, col_names):
+    def _parse_one_response(self, exp, row, rownum, col_names, response_keys):
 
-        resp_id = str(row.id).lower()
-        if resp_id is None:
-            self.logger.error('Error in worksheet {}, line {}: response id was not specified, please specify it'.
+        resp_id = row.id
+        if _isempty(resp_id) or resp_id == '':
+            self.logger.error('Error in worksheet "{}", line {}: response id was not specified, please specify it'.
                               format(expcompiler.xlsparser.XlsParser.ws_response, rownum, row.id), 'MISSING_RESPONSE_ID')
             self.errors_found = True
+            resp_id = None
+        else:
+            resp_id = str(resp_id).lower()
 
-        value = _nan_to_none(row.value) or row.value == ''
-        if value is None:
-            self.logger.error('Error in worksheet {}, line {}: value is empty, please specify it'.
+        value = _nan_to_none(row.value)
+        if value is None or value == '':
+            self.logger.error('Error in worksheet "{}", line {}: value is empty, please specify it'.
                               format(expcompiler.xlsparser.XlsParser.ws_response, rownum, value), 'MISSING_RESPONSE_VALUE')
             self.errors_found = True
             value = '(value not specified)'
 
         resp_type = str(row.type).lower()
         if resp_type == 'key':
-            resp = self._parse_key_response(row, rownum, resp_id, value)
+            resp = self._parse_key_response(row, rownum, resp_id, value, response_keys, col_names)
 
         elif resp_type == 'button':
             resp = self._parse_button_response(row, rownum, resp_id, value, col_names)
 
         else:
-            self.logger.error('Error in worksheet {}, line {}: type="{}" is unknown, only "key" and "button" are supported'.
+            self.logger.error('Error in worksheet "{}", line {}: type="{}" is unknown, only "key" and "button" are supported'.
                               format(expcompiler.xlsparser.XlsParser.ws_response, rownum, row.type), 'INVALID_RESPONSE_TYPE')
             self.errors_found = True
             return None
 
         if resp.id in exp.responses:
-            self.logger.error('Error in worksheet {}, line {}: response id="{}" was defined twice, this is invalid'.
+            self.logger.error('Error in worksheet "{}", line {}: response id="{}" was defined twice, this is invalid'.
                               format(expcompiler.xlsparser.XlsParser.ws_response, rownum, row.id), 'DUPLICATE_RESPONSE_ID')
             self.errors_found = True
             return None
@@ -263,33 +268,41 @@ class Compiler(object):
 
 
     #-----------------------------------------------------------------------------
-    def _parse_key_response(self, row, rownum, resp_id, value):
-        key = str(row.key).lower()
-        if key is None:
-            self.logger.error('Error in worksheet {}, line {}: key was not specified, please specify it'.
-                              format(expcompiler.xlsparser.XlsParser.ws_response, rownum), 'MISSING_RESPONSE_KEY')
-            self.errors_found = True
-            key = ''
+    def _parse_key_response(self, row, rownum, resp_id, value, response_keys, col_names):
+        if 'key' not in col_names:
+            key = '`'
+            if 'MISSING_KB_RESPONSE_KEY_COL' not in self.logger.err_codes:
+                self.logger.error('Error in worksheet "{}": Column "key" was not specified, but it must exist for button responses'.
+                                  format(expcompiler.xlsparser.XlsParser.ws_response), 'MISSING_KB_RESPONSE_KEY_COL')
+                self.errors_found = True
+        else:
+            key = row.key
+            if _isempty(key) or key == '':
+                self.logger.error('Error in worksheet "{}", line {}: key was not specified, please specify it'.
+                                  format(expcompiler.xlsparser.XlsParser.ws_response, rownum), 'MISSING_KB_RESPONSE_KEY')
+                self.errors_found = True
+                key = ''
 
-        try:
-            ord(key)
-        except TypeError:
-            self.logger.error('Error in worksheet {}, line {}: key="{}" is invalid'.
-                              format(expcompiler.xlsparser.XlsParser.ws_response, rownum, key), 'MISSING_RESPONSE_KEY')
-            self.errors_found = True
-            key = ''
+            if key in response_keys:
+                self.logger.error('Error in worksheet "{}", line {}: key="{}" was used in more than one response type'.
+                                  format(expcompiler.xlsparser.XlsParser.ws_response, rownum, key), 'DUPLICATE_RESPONSE_KEY')
+                self.errors_found = True
+            else:
+                response_keys.add(key)
 
         return expcompiler.experiment.KbResponse(resp_id, value, key)
 
 
     #-----------------------------------------------------------------------------
     def _parse_button_response(self, row, rownum, resp_id, value, col_names):
-        text = row.text
-        if 'text' not in col_names and 'MISSING_BUTTON_RESPONSE_TEXT' not in self.logger.err_codes:
-            self.logger.error('Error in worksheet {}: Column "{}" was not specified, but it must exist for button responses'.
-                              format(expcompiler.xlsparser.XlsParser.ws_response, rownum), 'MISSING_BUTTON_RESPONSE_TEXT')
-            self.errors_found = True
+        if 'text' not in col_names:
             text = 'N/A'
+            if 'MISSING_BUTTON_RESPONSE_TEXT_COL' not in self.logger.err_codes:
+                self.logger.error('Error in worksheet "{}": Column "text" was not specified, but it must exist for button responses'.
+                                  format(expcompiler.xlsparser.XlsParser.ws_response), 'MISSING_BUTTON_RESPONSE_TEXT_COL')
+                self.errors_found = True
+        else:
+            text = row.text
 
         #todo x, y coordinates
 
@@ -333,7 +346,7 @@ class Compiler(object):
             return default_value
 
         else:
-            self.logger.error('Error in worksheet {}: The value of parameter "{}" is "{}"; this is invalid and was ignored. Please specify either "Y" or "N"'.
+            self.logger.error('Error in worksheet "{}": The value of parameter "{}" is "{}"; this is invalid and was ignored. Please specify either "Y" or "N"'.
                               format(expcompiler.xlsparser.XlsParser.ws_general, param_name, value), 'INVALID_BOOL_PARAM')
             self.errors_found = True
             return default_value
@@ -358,7 +371,7 @@ class Compiler(object):
         except ValueError:
             pass
 
-        self.logger.error('WARNING in worksheet {}, in {}: the color "{}" seems invalid and may fail. '.format(ws_name, cell_name, color) +
+        self.logger.error('WARNING in worksheet "{}", in {}: the color "{}" seems invalid and may fail. '.format(ws_name, cell_name, color) +
                           'For an explanation about valid color speficication (as color name or color code), see http://htmlcolorcodes.com', 'INVALID_COLOR')
         self.warnings_found = True
 
@@ -395,7 +408,7 @@ class Compiler(object):
     #-----------------------------------------------------------------------------
     def _parse_number(self, value, ws_name, col_name, rownum):
         if value is None:
-            self.logger.error('Error in worksheet {}, column {}, line {}: Empty value is invalid, expecting a number'
+            self.logger.error('Error in worksheet "{}", column {}, line {}: Empty value is invalid, expecting a number'
                               .format(ws_name, col_name, rownum), 'INVALID_NUMERIC_VALUE')
             self.errors_found = True
             return None
@@ -407,7 +420,7 @@ class Compiler(object):
         except ValueError:
             pass
 
-        self.logger.error('Error in worksheet {}, column {}, line {}: The value "{}" is invalid, expecting a number'
+        self.logger.error('Error in worksheet "{}", column {}, line {}: The value "{}" is invalid, expecting a number'
                           .format(ws_name, col_name, rownum, value), 'INVALID_NUMERIC_VALUE')
         self.errors_found = True
         return None
@@ -416,7 +429,7 @@ class Compiler(object):
     #-----------------------------------------------------------------------------
     def _parse_position(self, value, ws_name, col_name, rownum):
         if value is None:
-            self.logger.error('Error in worksheet {}, column {}, line {}: Empty value is invalid, '.format(ws_name, col_name, rownum) +
+            self.logger.error('Error in worksheet "{}", column {}, line {}: Empty value is invalid, '.format(ws_name, col_name, rownum) +
                               Compiler.valid_position, 'EMPTY_COORD')
             self.errors_found = True
             return None
@@ -434,7 +447,7 @@ class Compiler(object):
 
         m = re.match('^(-?\\d+(\\.\\d+)?)(\\s*)((px)|%)$', value)
         if m is None:
-            self.logger.error('Error in worksheet {}, column {}, line {}: The value "{}" is invalid, '.format(ws_name, col_name, rownum, value) +
+            self.logger.error('Error in worksheet "{}", column {}, line {}: The value "{}" is invalid, '.format(ws_name, col_name, rownum, value) +
                               Compiler.valid_position, 'INVALID_COORD')
             self.errors_found = True
             return None
