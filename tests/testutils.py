@@ -1,8 +1,8 @@
 
 import pandas as pd
-from expcompiler.compiler import Compiler
+from expcompiler.parser import Parser
 
-class ParserForTests(object):
+class ReaderForTests(object):
 
     def __init__(self, general=None, layout=None, trial_types=None, respones=None, trials=None):
         self._general = self._to_df(general, ['param', 'value'])
@@ -41,7 +41,7 @@ class ParserForTests(object):
 
 
 
-class CompilerForTests(Compiler):
+class ParserForTests(Parser):
 
-    def __init__(self, parser):
-        super().__init__(None, None, parser=parser)
+    def __init__(self, reader=None):
+        super().__init__(None, reader=reader)

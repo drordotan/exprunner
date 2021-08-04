@@ -9,19 +9,21 @@ import expcompiler
 _invalid_value = '__INVALID_VALUE__'
 
 
-class Compiler(object):
+#===============================================================================================================================
+class Parser(object):
+    """
+    Parse the experiment config (from xls file)
+    """
 
     #-----------------------------------------------------------------------------
-    def __init__(self, src_fn, target_fn, parser=None, logger=None):
+    def __init__(self, filename, reader=None, logger=None):
         self.logger = logger or expcompiler.logger.Logger()
-        self.parser = parser or expcompiler.xlsparser.XlsParser(src_fn, logger=self.logger)
-        self.source_file = src_fn
-        self.target_file = target_fn
+        self.reader = reader or expcompiler.xlsreader.XlsReader(filename, logger=self.logger)
 
 
     #-----------------------------------------------------------------------------
     # noinspection PyAttributeOutsideInit
-    def compile(self):
+    def parse(self):
         """
         Compile the experiment into a script.
         Returns True if succeeded, False if failed.
@@ -29,21 +31,11 @@ class Compiler(object):
         self.errors_found = False
         self.warnings_found = False
 
-        if not self.parser.open():
-            return 2
+        if not self.reader.open():
+            self.errors_found = True
+            return None
 
-        exp = self.parse_experiment()
-        if exp is None:
-            return 2
-
-        self.write_experiment()
-
-        if self.errors_found:
-            return 2
-        elif self.warnings_found:
-            return 1
-        else:
-            return 0
+        return self.parse_experiment()
 
 
     #-----------------------------------------------------------------------------
@@ -61,7 +53,7 @@ class Compiler(object):
 
     #-----------------------------------------------------------------------------
     def _create_experiment(self):
-        df = self.parser.general_config()
+        df = self.reader.general_config()
 
         get_subj_id = self._get_param(df, 'get_subj_id')
         if get_subj_id is not None:
@@ -81,7 +73,7 @@ class Compiler(object):
 
         background_color = self._get_param(df, 'background_color')
         if background_color is not None:
-            self._validate_color_code(background_color, expcompiler.xlsparser.XlsParser.ws_general, 'parameter "background_color"')
+            self._validate_color_code(background_color, expcompiler.xlsreader.XlsReader.ws_general, 'parameter "background_color"')
 
         exp = expcompiler.experiment.Experiment(get_subj_id=get_subj_id,
                                                 get_session_id=get_session_id,
@@ -109,7 +101,7 @@ class Compiler(object):
             return df.reset_index().value[0]
         else:
             self.logger.error('Error in worksheet "{}": the parameter "{}" can only appear once but it appears 2 or more times'.
-                              format(expcompiler.xlsparser.XlsParser.ws_general, param_name), 'MULTIPLE_PARAM_VALUES')
+                              format(expcompiler.xlsreader.XlsReader.ws_general, param_name), 'MULTIPLE_PARAM_VALUES')
 
 
     #-----------------------------------------------------------------------------
@@ -134,7 +126,7 @@ class Compiler(object):
         """
         Parse the "layout" worksheet, which contains one line per control
         """
-        df = self.parser.layout()
+        df = self.reader.layout()
         for i, row in df.iterrows():
             ctl = self._parse_layout_control(exp, row, i+2)
             if ctl is not None:
@@ -151,13 +143,13 @@ class Compiler(object):
 
         else:
             self.logger.error('Error in worksheet "{}", line {}: type="{}" is unknown, only "text" is supported'.
-                              format(expcompiler.xlsparser.XlsParser.ws_layout, rownum, row.type), 'INVALID_CONTROL_TYPE')
+                              format(expcompiler.xlsreader.XlsReader.ws_layout, rownum, row.type), 'INVALID_CONTROL_TYPE')
             self.errors_found = True
             return None
 
         if control.name in exp.layout:
             self.logger.error('Error in worksheet "{}", line {}: field_name "{}" was already used in a previous line. This line was ignored.'.
-                              format(expcompiler.xlsparser.XlsParser.ws_layout, rownum, row.field_name), 'DUPLICATE_FIELD')
+                              format(expcompiler.xlsreader.XlsReader.ws_layout, rownum, row.field_name), 'DUPLICATE_FIELD')
             self.errors_found = True
             return None
 
@@ -177,10 +169,10 @@ class Compiler(object):
                 pass
 
             elif col_name.lower() == 'x':
-                x = self._parse_position(_nan_to_none(row.x), expcompiler.xlsparser.XlsParser.ws_layout, 'x', rownum)
+                x = self._parse_position(_nan_to_none(row.x), expcompiler.xlsreader.XlsReader.ws_layout, 'x', rownum)
 
             elif col_name.lower() == 'y':
-                y = self._parse_position(_nan_to_none(row.y), expcompiler.xlsparser.XlsParser.ws_layout, 'y', rownum) if 'y' in row else 0
+                y = self._parse_position(_nan_to_none(row.y), expcompiler.xlsreader.XlsReader.ws_layout, 'y', rownum) if 'y' in row else 0
 
             elif col_name.lower() == 'text':
                 text = str(row.text) if 'text' in row and not _isempty(row.text) else ""
@@ -193,17 +185,12 @@ class Compiler(object):
 
             elif rownum == 2:  # this error is issued only once per column
                 self.logger.error('Warning in worksheet "{}": column name "{}" is invalid and was ignored.'.
-                                  format(expcompiler.xlsparser.XlsParser.ws_layout, col_name), 'EXCESSIVE_COLUMN')
+                                  format(expcompiler.xlsreader.XlsReader.ws_layout, col_name), 'EXCESSIVE_COLUMN')
                 self.warnings_found = True
 
         field_name = str(row.field_name)
 
         return expcompiler.experiment.TextControl(field_name, text, x, y, css)
-
-
-    #-----------------------------------------------------------------------------
-    def write_experiment(self):
-        return True
 
 
     #=========================================================================================
@@ -215,7 +202,7 @@ class Compiler(object):
         """
         Parse the "trial_type" worksheet, which contains one line per trial type
         """
-        df = self.parser.response_modes()
+        df = self.reader.response_modes()
         if df is None:
             return
 
@@ -231,7 +218,7 @@ class Compiler(object):
         resp_id = row.id
         if _isempty(resp_id) or resp_id == '':
             self.logger.error('Error in worksheet "{}", line {}: response id was not specified, please specify it'.
-                              format(expcompiler.xlsparser.XlsParser.ws_response, rownum, row.id), 'MISSING_RESPONSE_ID')
+                              format(expcompiler.xlsreader.XlsReader.ws_response, rownum, row.id), 'MISSING_RESPONSE_ID')
             self.errors_found = True
             resp_id = None
         else:
@@ -240,7 +227,7 @@ class Compiler(object):
         value = _nan_to_none(row.value)
         if value is None or value == '':
             self.logger.error('Error in worksheet "{}", line {}: value is empty, please specify it'.
-                              format(expcompiler.xlsparser.XlsParser.ws_response, rownum, value), 'MISSING_RESPONSE_VALUE')
+                              format(expcompiler.xlsreader.XlsReader.ws_response, rownum, value), 'MISSING_RESPONSE_VALUE')
             self.errors_found = True
             value = '(value not specified)'
 
@@ -253,13 +240,13 @@ class Compiler(object):
 
         else:
             self.logger.error('Error in worksheet "{}", line {}: type="{}" is unknown, only "key" and "button" are supported'.
-                              format(expcompiler.xlsparser.XlsParser.ws_response, rownum, row.type), 'INVALID_RESPONSE_TYPE')
+                              format(expcompiler.xlsreader.XlsReader.ws_response, rownum, row.type), 'INVALID_RESPONSE_TYPE')
             self.errors_found = True
             return None
 
         if resp.id in exp.responses:
             self.logger.error('Error in worksheet "{}", line {}: response id="{}" was defined twice, this is invalid'.
-                              format(expcompiler.xlsparser.XlsParser.ws_response, rownum, row.id), 'DUPLICATE_RESPONSE_ID')
+                              format(expcompiler.xlsreader.XlsReader.ws_response, rownum, row.id), 'DUPLICATE_RESPONSE_ID')
             self.errors_found = True
             return None
 
@@ -273,19 +260,19 @@ class Compiler(object):
             key = '`'
             if 'MISSING_KB_RESPONSE_KEY_COL' not in self.logger.err_codes:
                 self.logger.error('Error in worksheet "{}": Column "key" was not specified, but it must exist for button responses'.
-                                  format(expcompiler.xlsparser.XlsParser.ws_response), 'MISSING_KB_RESPONSE_KEY_COL')
+                                  format(expcompiler.xlsreader.XlsReader.ws_response), 'MISSING_KB_RESPONSE_KEY_COL')
                 self.errors_found = True
         else:
             key = row.key
             if _isempty(key) or key == '':
                 self.logger.error('Error in worksheet "{}", line {}: key was not specified, please specify it'.
-                                  format(expcompiler.xlsparser.XlsParser.ws_response, rownum), 'MISSING_KB_RESPONSE_KEY')
+                                  format(expcompiler.xlsreader.XlsReader.ws_response, rownum), 'MISSING_KB_RESPONSE_KEY')
                 self.errors_found = True
                 key = ''
 
             if key in response_keys:
                 self.logger.error('Error in worksheet "{}", line {}: key="{}" was used in more than one response type'.
-                                  format(expcompiler.xlsparser.XlsParser.ws_response, rownum, key), 'DUPLICATE_RESPONSE_KEY')
+                                  format(expcompiler.xlsreader.XlsReader.ws_response, rownum, key), 'DUPLICATE_RESPONSE_KEY')
                 self.errors_found = True
             else:
                 response_keys.add(key)
@@ -299,7 +286,7 @@ class Compiler(object):
             text = 'N/A'
             if 'MISSING_BUTTON_RESPONSE_TEXT_COL' not in self.logger.err_codes:
                 self.logger.error('Error in worksheet "{}": Column "text" was not specified, but it must exist for button responses'.
-                                  format(expcompiler.xlsparser.XlsParser.ws_response), 'MISSING_BUTTON_RESPONSE_TEXT_COL')
+                                  format(expcompiler.xlsreader.XlsReader.ws_response), 'MISSING_BUTTON_RESPONSE_TEXT_COL')
                 self.errors_found = True
         else:
             text = row.text
@@ -317,7 +304,7 @@ class Compiler(object):
         """
         Parse the "trial_type" worksheet, which contains one line per trial type
         """
-        df = self.parser.trial_type()
+        df = self.reader.trial_type()
         for i, row in df.iterrows():
             ttype = self._parse_one_trial_type(exp, row, i+2)
             if ttype is not None:
@@ -347,7 +334,7 @@ class Compiler(object):
 
         else:
             self.logger.error('Error in worksheet "{}": The value of parameter "{}" is "{}"; this is invalid and was ignored. Please specify either "Y" or "N"'.
-                              format(expcompiler.xlsparser.XlsParser.ws_general, param_name, value), 'INVALID_BOOL_PARAM')
+                              format(expcompiler.xlsreader.XlsReader.ws_general, param_name, value), 'INVALID_BOOL_PARAM')
             self.errors_found = True
             return default_value
 
@@ -389,17 +376,17 @@ class Compiler(object):
             keyword = m.group(1)
             if keyword == 'subj_id' and not subj_id_available:
                 self.logger.error('Error in worksheet "{}": invalid value for the "results_filename" parameter - the keyword "{}" cannot be used because you did not ask to obtain the subject ID'
-                                  .format(expcompiler.xlsparser.XlsParser.ws_general, keyword), 'INVALID_FILENAME(SUBJ_ID)')
+                                  .format(expcompiler.xlsreader.XlsReader.ws_general, keyword), 'INVALID_FILENAME(SUBJ_ID)')
                 self.errors_found = True
 
             elif keyword == 'session_id' and not session_id_available:
                 self.logger.error('Error in worksheet "{}": invalid value for the "results_filename" parameter - the keyword "{}" cannot be used because you did not ask to obtain a session ID'
-                                  .format(expcompiler.xlsparser.XlsParser.ws_general, keyword), 'INVALID_FILENAME(SESSION_ID)')
+                                  .format(expcompiler.xlsreader.XlsReader.ws_general, keyword), 'INVALID_FILENAME(SESSION_ID)')
                 self.errors_found = True
 
             elif keyword not in valid_keywords:
                 self.logger.error('Error in worksheet "{}": invalid value for the "results_filename" parameter - the keyword "{}" is unknown'
-                                  .format(expcompiler.xlsparser.XlsParser.ws_general, keyword), 'INVALID_FILENAME(UNKNOWN_KEYWORD)')
+                                  .format(expcompiler.xlsreader.XlsReader.ws_general, keyword), 'INVALID_FILENAME(UNKNOWN_KEYWORD)')
                 self.errors_found = True
 
             remaining = m.group(2)
@@ -429,8 +416,8 @@ class Compiler(object):
     #-----------------------------------------------------------------------------
     def _parse_position(self, value, ws_name, col_name, rownum):
         if value is None:
-            self.logger.error('Error in worksheet "{}", column {}, line {}: Empty value is invalid, '.format(ws_name, col_name, rownum) +
-                              Compiler.valid_position, 'EMPTY_COORD')
+            self.logger.error('Error in worksheet "{}", column {}, line {}: Empty value is invalid, '.format(ws_name, col_name, rownum)+
+                              Parser.valid_position, 'EMPTY_COORD')
             self.errors_found = True
             return None
 
@@ -447,8 +434,8 @@ class Compiler(object):
 
         m = re.match('^(-?\\d+(\\.\\d+)?)(\\s*)((px)|%)$', value)
         if m is None:
-            self.logger.error('Error in worksheet "{}", column {}, line {}: The value "{}" is invalid, '.format(ws_name, col_name, rownum, value) +
-                              Compiler.valid_position, 'INVALID_COORD')
+            self.logger.error('Error in worksheet "{}", column {}, line {}: The value "{}" is invalid, '.format(ws_name, col_name, rownum, value)+
+                              Parser.valid_position, 'INVALID_COORD')
             self.errors_found = True
             return None
 
@@ -468,6 +455,15 @@ def _nan_to_none(value):
 
 
 #-----------------------------------------------------------------------------
-def compile_exp(src_fn, target_fn, parser=None):
-    compiler = Compiler(src_fn, target_fn, parser)
-    return compiler.compile()
+def compile_exp(src_fn, target_fn, reader=None):
+    parser = Parser(src_fn, reader)
+    exp = parser.parse()
+
+    if exp is None or parser.errors_found:
+        return 2
+    elif parser.warnings_found:
+        return 1
+    else:
+        return 0
+
+    #todo write js file

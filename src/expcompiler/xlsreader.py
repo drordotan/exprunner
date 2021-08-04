@@ -8,7 +8,7 @@ from numbers import Number
 import expcompiler.logger
 
 
-class XlsParser(object):
+class XlsReader(object):
     """
     Parse an excel file with experiment config
     """
@@ -41,8 +41,8 @@ class XlsParser(object):
         self.worksheets = {ws.title for ws in wb.worksheets}
         wb.close()
 
-        expected_ws_names = XlsParser.ws_general, XlsParser.ws_trial_type, XlsParser.ws_layout, XlsParser.ws_response, \
-                            XlsParser.ws_trials
+        expected_ws_names = XlsReader.ws_general, XlsReader.ws_trial_type, XlsReader.ws_layout, XlsReader.ws_response, \
+                            XlsReader.ws_trials
         ok = True
         for wsn in expected_ws_names:
             if wsn not in self.worksheets:
@@ -59,10 +59,10 @@ class XlsParser(object):
         Return general config parameters, as a dictionary with several entries
         :return:
         """
-        if XlsParser.ws_general not in self.worksheets:
+        if XlsReader.ws_general not in self.worksheets:
             return None
 
-        return self._load_worksheet_as_data_frame(XlsParser.ws_general, ('param', 'value'), converters=dict(value=_parse_str))
+        return self._load_worksheet_as_data_frame(XlsReader.ws_general, ('param', 'value'), converters=dict(value=_parse_str))
 
 
     #--------------------------------------------------
@@ -72,40 +72,40 @@ class XlsParser(object):
         for col_name in expected_col_names:
             if col_name not in df:
                 self.logger.error('Invalid format in worksheet "{}": Column "{}" is missing'.format(ws_name, col_name),
-                                  'MISSING_COL(sheet={})'.format(XlsParser.ws_general))
+                                  'MISSING_COL(sheet={})'.format(XlsReader.ws_general))
         return df if ok else None
 
 
     #--------------------------------------------------
     def layout(self):
-        if XlsParser.ws_layout not in self.worksheets:
+        if XlsReader.ws_layout not in self.worksheets:
             return None
 
-        return self._load_worksheet_as_data_frame(XlsParser.ws_layout, ('field_name', 'type'))
+        return self._load_worksheet_as_data_frame(XlsReader.ws_layout, ('field_name', 'type'))
 
 
     #--------------------------------------------------
     def trial_types(self):
-        if XlsParser.ws_trial_type not in self.worksheets:
+        if XlsReader.ws_trial_type not in self.worksheets:
             return None
 
-        return self._load_worksheet_as_data_frame(XlsParser.ws_trial_type, ('fields'))
+        return self._load_worksheet_as_data_frame(XlsReader.ws_trial_type, ('fields'))
 
 
     #--------------------------------------------------
     def response_modes(self):
-        if XlsParser.ws_response not in self.worksheets:
+        if XlsReader.ws_response not in self.worksheets:
             return None
 
-        return self._load_worksheet_as_data_frame(XlsParser.ws_response, ('id', 'type', 'value'))
+        return self._load_worksheet_as_data_frame(XlsReader.ws_response, ('id', 'type', 'value'))
 
 
     #--------------------------------------------------
     def trials(self):
-        if XlsParser.ws_trials not in self.worksheets:
+        if XlsReader.ws_trials not in self.worksheets:
             return None
 
-        return self._load_worksheet_as_data_frame(XlsParser.ws_response)
+        return self._load_worksheet_as_data_frame(XlsReader.ws_response)
 
 
 #---------------------------------------------------------------
