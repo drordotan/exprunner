@@ -29,12 +29,109 @@ def Text(field_name, text='', **kwargs):
 class CompilerGeneralWsTests(unittest.TestCase):
 
     #--------------------------------------------------------
+    # Specify subj ID
+    #--------------------------------------------------------
+
+    def test_specify_results_filename_subj_id_y(self):
+        rc, compiler = test_compile(general=[ G('get_subj_id', 'Y')])
+        self.assertEqual(0, rc)
+
+    def test_specify_results_filename_subj_id_n(self):
+        rc, compiler = test_compile(general=[ G('get_subj_id', 'Y')])
+        self.assertEqual(0, rc)
+
+    def test_specify_results_filename_subj_id_none(self):
+        rc, compiler = test_compile(general=[ G('get_subj_id', None)])
+        self.assertEqual(0, rc)
+
+    def test_specify_results_filename_subj_id_empty(self):
+        rc, compiler = test_compile(general=[ G('get_subj_id', '')])
+        self.assertEqual(2, rc)
+
+    def test_specify_results_filename_subj_id_invalid(self):
+        rc, compiler = test_compile(general=[ G('get_subj_id', 'xyz')])
+        self.assertEqual(2, rc)
+
+
+    #--------------------------------------------------------
+    # Specify session ID
+    #--------------------------------------------------------
+
+    def test_specify_results_filename_session_id_y(self):
+        rc, compiler = test_compile(general=[ G('get_session_id', 'Y')])
+        self.assertEqual(0, rc)
+
+    def test_specify_results_filename_session_id_n(self):
+        rc, compiler = test_compile(general=[ G('get_session_id', 'Y')])
+        self.assertEqual(0, rc)
+
+    def test_specify_results_filename_session_id_none(self):
+        rc, compiler = test_compile(general=[ G('get_session_id', None)])
+        self.assertEqual(0, rc)
+
+    def test_specify_results_filename_session_id_empty(self):
+        rc, compiler = test_compile(general=[ G('get_session_id', '')])
+        self.assertEqual(2, rc)
+
+    def test_specify_results_filename_session_id_invalid(self):
+        rc, compiler = test_compile(general=[ G('get_session_id', 'xyz')])
+        self.assertEqual(2, rc)
+
+
+    #--------------------------------------------------------
     # Specify results filename
     #--------------------------------------------------------
 
     def test_specify_results_filename_without_keywords(self):
         rc, compiler = test_compile(general=[G('results_filename', 'stam.pdf')])
         self.assertEqual(0, rc)
+
+    def test_specify_results_filename_with_date(self):
+        rc, compiler = test_compile(general=[G('results_filename', 'a${date}.pdf')])
+        self.assertEqual(0, rc)
+
+    def test_specify_results_filename_with_valid_subj_id(self):
+        rc, compiler = test_compile(general=[G('results_filename', 'a${subj_id}.pdf'), G('get_subj_id', 'Y')])
+        self.assertEqual(0, rc)
+
+    def test_specify_results_filename_with_invalid_subj_id(self):
+        rc, compiler = test_compile(general=[G('results_filename', 'a${subj_id}.pdf')])
+        self.assertEqual(2, rc)
+        self.assertTrue('INVALID_FILENAME(SUBJ_ID)' in compiler.logger.err_codes, 'error codes: ' + ','.join(compiler.logger.err_codes.keys()))
+
+    def test_specify_results_filename_with_valid_session_id(self):
+        rc, compiler = test_compile(general=[G('results_filename', 'a${session_id}.pdf'), G('get_session_id', 'Y')])
+        self.assertEqual(0, rc)
+
+    def test_specify_results_filename_with_invalid_session_id(self):
+        rc, compiler = test_compile(general=[G('results_filename', 'a${session_id}.pdf')])
+        self.assertEqual(2, rc)
+        self.assertTrue('INVALID_FILENAME(SESSION_ID)' in compiler.logger.err_codes, 'error codes: ' + ','.join(compiler.logger.err_codes.keys()))
+
+    def test_specify_results_filename_with_invalid_keyword(self):
+        rc, compiler = test_compile(general=[G('results_filename', 'a${stam}.pdf')])
+        self.assertEqual(2, rc)
+        self.assertTrue('INVALID_FILENAME(UNKNOWN_KEYWORD)' in compiler.logger.err_codes, 'error codes: ' + ','.join(compiler.logger.err_codes.keys()))
+
+    #--------------------------------------------------------
+    # Specify background color
+    #--------------------------------------------------------
+
+    def test_specify_results_background_color_name(self):
+        rc, compiler = test_compile(general=[G('background_color', 'white')])
+        self.assertEqual(0, rc)
+
+    def test_specify_results_background_color_invalid_name(self):
+        rc, compiler = test_compile(general=[G('background_color', 'bullshit')])
+        self.assertEqual(1, rc)
+
+    def test_specify_results_background_color_hex(self):
+        rc, compiler = test_compile(general=[G('background_color', '#FEFEFE')])
+        self.assertEqual(0, rc)
+
+    def test_specify_results_background_color_invalid_hex(self):
+        rc, compiler = test_compile(general=[G('background_color', '#FFFFFG')])
+        self.assertEqual(1, rc)
 
 
 

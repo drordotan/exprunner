@@ -20,6 +20,7 @@ class Compiler(object):
 
 
     #-----------------------------------------------------------------------------
+    # noinspection PyAttributeOutsideInit
     def compile(self):
         """
         Compile the experiment into a script.
@@ -58,17 +59,20 @@ class Compiler(object):
         df = self.parser.general_config()
 
         get_subj_id = self._get_param(df, 'get_subj_id')
-        get_subj_id = self._parse_cfg_bool(get_subj_id, 'get_subj_id', False)
+        if get_subj_id is not None:
+            get_subj_id = self._parse_cfg_bool(get_subj_id, 'get_subj_id', False)
 
         get_session_id = self._get_param(df, 'get_session_id')
-        get_session_id = self._parse_cfg_bool(get_session_id, 'get_session_id', False)
+        if get_session_id is not None:
+            get_session_id = self._parse_cfg_bool(get_session_id, 'get_session_id', False)
 
         full_screen = self._get_param(df, 'full_screen')
-        full_screen = self._parse_cfg_bool(full_screen, 'full_screen', False)
+        if full_screen is not None:
+            full_screen = self._parse_cfg_bool(full_screen, 'full_screen', False)
 
         results_filename = self._get_param(df, 'results_filename')
         if results_filename is not None:
-            self._validate_results_filename_keywords(results_filename, get_subj_id is not None, get_session_id is not None)
+            self._validate_results_filename_keywords(results_filename, get_subj_id, get_session_id)
 
         background_color = self._get_param(df, 'background_color')
         if background_color is not None:
@@ -97,13 +101,14 @@ class Compiler(object):
         if df.shape[0] == 0:
             return None
         elif df.shape[0] == 1:
-            return df.value[0]
+            return df.reset_index().value[0]
         else:
             self.logger.error('Error in worksheet {}: the parameter "{}" can only appear once but it appears 2 or more times'.
                               format(expcompiler.xlsparser.XlsParser.ws_general, param_name), 'MULTIPLE_PARAM_VALUES')
 
 
     #-----------------------------------------------------------------------------
+    # noinspection PyMethodMayBeStatic
     def _get_param_multi_values(self, df, param_name):
         """
         Get a config parameter from the "general" worksheet.
@@ -140,7 +145,6 @@ class Compiler(object):
                               format(expcompiler.xlsparser.XlsParser.ws_layout, rownum, row.type), 'INVALID_CONTROL_TYPE')
             self.errors_found = True
             return None
-
 
         if control.name in exp.layout:
             self.logger.error('Error in worksheet {}, line {}: field_name "{}" was already used in a previous line. This line was ignored.'.
@@ -198,12 +202,10 @@ class Compiler(object):
     #=========================================================================================
 
     #-----------------------------------------------------------------------------
-    def _parse_cfg_bool(self, value, param_name, default_value, allow_empty=True):
+    def _parse_cfg_bool(self, value, param_name, default_value, allow_empty=False):
         """
         Parse a parameter from the general-config worksheet
         The parameter represents a boolean value
-
-        :param cfg: The config (dict with string values)
         """
         value = "" if value is None else value.upper()
 
@@ -250,7 +252,7 @@ class Compiler(object):
     #-----------------------------------------------------------------------------
     def _validate_results_filename_keywords(self, filename, subj_id_available, session_id_available):
 
-        valid_keywords = 'subj_id', 'date'
+        valid_keywords = 'subj_id', 'session_id', 'date'
 
         remaining = filename
         while remaining is not None and remaining != "":
@@ -259,18 +261,18 @@ class Compiler(object):
                 return
             keyword = m.group(1)
             if keyword == 'subj_id' and not subj_id_available:
-                self.logger('Error in worksheet "{}": invalid value for the "results_filename" parameter - the keyword "{}" cannot be used because you did not ask to obtain the subject ID'
-                            .format(expcompiler.xlsparser.XlsParser.ws_general, keyword))
+                self.logger.error('Error in worksheet "{}": invalid value for the "results_filename" parameter - the keyword "{}" cannot be used because you did not ask to obtain the subject ID'
+                                  .format(expcompiler.xlsparser.XlsParser.ws_general, keyword), 'INVALID_FILENAME(SUBJ_ID)')
                 self.errors_found = True
 
             elif keyword == 'session_id' and not session_id_available:
-                self.logger('Error in worksheet "{}": invalid value for the "results_filename" parameter - the keyword "{}" cannot be used because you did not ask to obtain a session ID'
-                            .format(expcompiler.xlsparser.XlsParser.ws_general, keyword))
+                self.logger.error('Error in worksheet "{}": invalid value for the "results_filename" parameter - the keyword "{}" cannot be used because you did not ask to obtain a session ID'
+                                  .format(expcompiler.xlsparser.XlsParser.ws_general, keyword), 'INVALID_FILENAME(SESSION_ID)')
                 self.errors_found = True
 
             elif keyword not in valid_keywords:
-                self.logger('Error in worksheet "{}": invalid value for the "results_filename" parameter - the keyword "{}" is unknown'
-                            .format(expcompiler.xlsparser.XlsParser.ws_general, keyword))
+                self.logger.error('Error in worksheet "{}": invalid value for the "results_filename" parameter - the keyword "{}" is unknown'
+                                  .format(expcompiler.xlsparser.XlsParser.ws_general, keyword), 'INVALID_FILENAME(UNKNOWN_KEYWORD)')
                 self.errors_found = True
 
             remaining = m.group(2)
@@ -337,8 +339,8 @@ def _isempty(value):
 def _nan_to_none(value):
     return None if _isempty(value) else value
 
+
 #-----------------------------------------------------------------------------
 def compile_exp(src_fn, target_fn, parser=None):
     compiler = Compiler(src_fn, target_fn, parser)
     return compiler.compile()
-
