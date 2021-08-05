@@ -2,6 +2,7 @@
 The definitions of an experiment, in internal format
 """
 
+
 #-----------------------------------------------------------
 class Experiment(object):
 
@@ -42,6 +43,7 @@ class TextControl(Control):
         self.y = y
         self.css = css
 
+
 #===============================================================================================
 # Responses
 #===============================================================================================
@@ -49,24 +51,24 @@ class TextControl(Control):
 #-----------------------------------------------------------
 class Response(object):
 
-    def __init__(self, id, value):
-        self.id = id
+    def __init__(self, resp_id, value):
+        self.resp_id = resp_id
         self.value = value
 
 
 #-----------------------------------------------------------
 class ClickButtonResponse(Response):
 
-    def __init__(self, id, value, button_text):  # todo: x,y as generic attrs? hard coded?
-        super().__init__(id, value)
+    def __init__(self, resp_id, value, button_text):  # todo: x,y as generic attrs? hard coded?
+        super().__init__(resp_id, value)
         self.button_text = button_text
 
 
 #-----------------------------------------------------------
 class KbResponse(Response):
 
-    def __init__(self, id, value, key):
-        super().__init__(id, value)
+    def __init__(self, resp_id, value, key):
+        super().__init__(resp_id, value)
         self.key = key
 
 
@@ -77,6 +79,8 @@ class KbResponse(Response):
 #-----------------------------------------------------------
 class TrialType(object):
 
+    default_name = "default"
+
     def __init__(self, name):
         self.name = name
         self.steps = []
@@ -85,8 +89,10 @@ class TrialType(object):
 #-----------------------------------------------------------
 class TrialStep(object):
 
-    def __init__(self, num, fields, responses):
+    def __init__(self, num, fields, responses, duration, delay_before, delay_after):
         self.num = num
         self.fields = fields
         self.responses = responses
-        #todo delays
+        self.duration = duration
+        self.delay_before = delay_before
+        self.delay_after = delay_after

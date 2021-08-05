@@ -159,6 +159,8 @@ class GeneralWsTests(unittest.TestCase):
 #=============================================================================================
 class LayoutTests(unittest.TestCase):
 
+    #todo: no layouts defined: error
+
     #--------------------------------------------------------
     def test_minimal_valid_definitions(self):
         rc, parser = test_parse(layout=[Text('field1'), Text('field2')])
@@ -317,6 +319,42 @@ class ResponsesTests(unittest.TestCase):
         self.assertEqual(2, rc)
         self.assertTrue(parser.errors_found)
         self.assertTrue('MISSING_BUTTON_RESPONSE_TEXT_COL' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+
+
+#=============================================================================================
+class TrialTypesTests(unittest.TestCase):
+
+    pass
+
+    #todo: no trial types defined: error
+
+    #todo: valid "fields"
+    #todo: numeric field name: valid
+    #todo: empty "fields"
+    #todo: duplicate field names
+    #todo: unknown field name
+
+    #todo: no "responses" -- valid
+    #todo: valid "responses"
+    #todo: numeric response name: valid
+    #todo: empty "responses"
+    #todo: duplicate response names
+    #todo: unknown response name
+    #todo: both keyboard and mouse responses: issue a warning
+
+    #todo: no duration
+    #todo: valid duration (float)
+    #todo: duration=0: invalid
+    #todo: duration<0: invalid
+    #todo: non-numeric duration: invalid
+
+    #todo: no delay-before
+    #todo: valid delay-before (float)
+    #todo: delay-before=0: valid
+    #todo: delay-before<0: invalid
+    #todo: non-numeric delay-before: invalid
+
+    #todo: same for delay-after
 
 
 if __name__ == '__main__':

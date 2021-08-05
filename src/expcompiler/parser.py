@@ -40,19 +40,22 @@ class Parser(object):
 
     #-----------------------------------------------------------------------------
     def parse_experiment(self):
-        exp = self._create_experiment()
+        exp = self.create_experiment()
         self.parse_layout(exp)
         self.parse_responses(exp)
-        #todo self.parse_trial_type(exp)
+        self.parse_trial_type(exp)
+        #todo self.parse_trials(exp)
 
         return exp
+
 
     #=========================================================================================
     # Parse the "general" tab
     #=========================================================================================
 
     #-----------------------------------------------------------------------------
-    def _create_experiment(self):
+    def create_experiment(self):
+
         df = self.reader.general_config()
 
         get_subj_id = self._get_param(df, 'get_subj_id')
@@ -134,22 +137,22 @@ class Parser(object):
 
 
     #-----------------------------------------------------------------------------
-    def _parse_layout_control(self, exp, row, rownum):
+    def _parse_layout_control(self, exp, row, xls_line_num):
 
         control_type = str(row.type).lower()
 
         if control_type == 'text':
-            control = self._parse_text_control(row, rownum)
+            control = self._parse_text_control(row, xls_line_num)
 
         else:
             self.logger.error('Error in worksheet "{}", line {}: type="{}" is unknown, only "text" is supported'.
-                              format(expcompiler.xlsreader.XlsReader.ws_layout, rownum, row.type), 'INVALID_CONTROL_TYPE')
+                              format(expcompiler.xlsreader.XlsReader.ws_layout, xls_line_num, row.type), 'INVALID_CONTROL_TYPE')
             self.errors_found = True
             return None
 
         if control.name in exp.layout:
             self.logger.error('Error in worksheet "{}", line {}: field_name "{}" was already used in a previous line. This line was ignored.'.
-                              format(expcompiler.xlsreader.XlsReader.ws_layout, rownum, row.field_name), 'DUPLICATE_FIELD')
+                              format(expcompiler.xlsreader.XlsReader.ws_layout, xls_line_num, row.field_name), 'DUPLICATE_FIELD')
             self.errors_found = True
             return None
 
@@ -157,7 +160,7 @@ class Parser(object):
 
 
     #-----------------------------------------------------------------------------
-    def _parse_text_control(self, row, rownum):
+    def _parse_text_control(self, row, xls_line_num):
 
         text = ""
         x = 0
@@ -169,10 +172,10 @@ class Parser(object):
                 pass
 
             elif col_name.lower() == 'x':
-                x = self._parse_position(_nan_to_none(row.x), expcompiler.xlsreader.XlsReader.ws_layout, 'x', rownum)
+                x = self._parse_position(_nan_to_none(row.x), expcompiler.xlsreader.XlsReader.ws_layout, 'x', xls_line_num)
 
             elif col_name.lower() == 'y':
-                y = self._parse_position(_nan_to_none(row.y), expcompiler.xlsreader.XlsReader.ws_layout, 'y', rownum) if 'y' in row else 0
+                y = self._parse_position(_nan_to_none(row.y), expcompiler.xlsreader.XlsReader.ws_layout, 'y', xls_line_num) if 'y' in row else 0
 
             elif col_name.lower() == 'text':
                 text = str(row.text) if 'text' in row and not _isempty(row.text) else ""
@@ -183,7 +186,7 @@ class Parser(object):
                 value = row[col_name]
                 css[css_field_name] = "" if _isempty(value) else str(value)
 
-            elif rownum == 2:  # this error is issued only once per column
+            elif xls_line_num == 2:  # this error is issued only once per column
                 self.logger.error('Warning in worksheet "{}": column name "{}" is invalid and was ignored.'.
                                   format(expcompiler.xlsreader.XlsReader.ws_layout, col_name), 'EXCESSIVE_COLUMN')
                 self.warnings_found = True
@@ -213,12 +216,12 @@ class Parser(object):
 
 
     #-----------------------------------------------------------------------------
-    def _parse_one_response(self, exp, row, rownum, col_names, response_keys):
+    def _parse_one_response(self, exp, row, xls_line_num, col_names, response_keys):
 
         resp_id = row.id
         if _isempty(resp_id) or resp_id == '':
             self.logger.error('Error in worksheet "{}", line {}: response id was not specified, please specify it'.
-                              format(expcompiler.xlsreader.XlsReader.ws_response, rownum, row.id), 'MISSING_RESPONSE_ID')
+                              format(expcompiler.xlsreader.XlsReader.ws_response, xls_line_num, row.id), 'MISSING_RESPONSE_ID')
             self.errors_found = True
             resp_id = None
         else:
@@ -227,26 +230,26 @@ class Parser(object):
         value = _nan_to_none(row.value)
         if value is None or value == '':
             self.logger.error('Error in worksheet "{}", line {}: value is empty, please specify it'.
-                              format(expcompiler.xlsreader.XlsReader.ws_response, rownum, value), 'MISSING_RESPONSE_VALUE')
+                              format(expcompiler.xlsreader.XlsReader.ws_response, xls_line_num, value), 'MISSING_RESPONSE_VALUE')
             self.errors_found = True
             value = '(value not specified)'
 
         resp_type = str(row.type).lower()
         if resp_type == 'key':
-            resp = self._parse_key_response(row, rownum, resp_id, value, response_keys, col_names)
+            resp = self._parse_key_response(row, xls_line_num, resp_id, value, response_keys, col_names)
 
         elif resp_type == 'button':
-            resp = self._parse_button_response(row, rownum, resp_id, value, col_names)
+            resp = self._parse_button_response(row, xls_line_num, resp_id, value, col_names)
 
         else:
             self.logger.error('Error in worksheet "{}", line {}: type="{}" is unknown, only "key" and "button" are supported'.
-                              format(expcompiler.xlsreader.XlsReader.ws_response, rownum, row.type), 'INVALID_RESPONSE_TYPE')
+                              format(expcompiler.xlsreader.XlsReader.ws_response, xls_line_num, row.type), 'INVALID_RESPONSE_TYPE')
             self.errors_found = True
             return None
 
-        if resp.id in exp.responses:
+        if resp.resp_id in exp.responses:
             self.logger.error('Error in worksheet "{}", line {}: response id="{}" was defined twice, this is invalid'.
-                              format(expcompiler.xlsreader.XlsReader.ws_response, rownum, row.id), 'DUPLICATE_RESPONSE_ID')
+                              format(expcompiler.xlsreader.XlsReader.ws_response, xls_line_num, row.id), 'DUPLICATE_RESPONSE_ID')
             self.errors_found = True
             return None
 
@@ -255,7 +258,7 @@ class Parser(object):
 
 
     #-----------------------------------------------------------------------------
-    def _parse_key_response(self, row, rownum, resp_id, value, response_keys, col_names):
+    def _parse_key_response(self, row, xls_line_num, resp_id, value, response_keys, col_names):
         if 'key' not in col_names:
             key = '`'
             if 'MISSING_KB_RESPONSE_KEY_COL' not in self.logger.err_codes:
@@ -266,13 +269,13 @@ class Parser(object):
             key = row.key
             if _isempty(key) or key == '':
                 self.logger.error('Error in worksheet "{}", line {}: key was not specified, please specify it'.
-                                  format(expcompiler.xlsreader.XlsReader.ws_response, rownum), 'MISSING_KB_RESPONSE_KEY')
+                                  format(expcompiler.xlsreader.XlsReader.ws_response, xls_line_num), 'MISSING_KB_RESPONSE_KEY')
                 self.errors_found = True
                 key = ''
 
             if key in response_keys:
                 self.logger.error('Error in worksheet "{}", line {}: key="{}" was used in more than one response type'.
-                                  format(expcompiler.xlsreader.XlsReader.ws_response, rownum, key), 'DUPLICATE_RESPONSE_KEY')
+                                  format(expcompiler.xlsreader.XlsReader.ws_response, xls_line_num, key), 'DUPLICATE_RESPONSE_KEY')
                 self.errors_found = True
             else:
                 response_keys.add(key)
@@ -281,7 +284,7 @@ class Parser(object):
 
 
     #-----------------------------------------------------------------------------
-    def _parse_button_response(self, row, rownum, resp_id, value, col_names):
+    def _parse_button_response(self, row, xls_line_num, resp_id, value, col_names):
         if 'text' not in col_names:
             text = 'N/A'
             if 'MISSING_BUTTON_RESPONSE_TEXT_COL' not in self.logger.err_codes:
@@ -300,15 +303,186 @@ class Parser(object):
     # Parse the "trial_type" sheet
     #=========================================================================================
 
+    #-----------------------------------------------------------------------------
     def parse_trial_type(self, exp):
         """
         Parse the "trial_type" worksheet, which contains one line per trial type
         """
         df = self.reader.trial_type()
+        col_names = tuple(df)
+        last_type_name = None
+
         for i, row in df.iterrows():
-            ttype = self._parse_one_trial_type(exp, row, i+2)
-            if ttype is not None:
-                exp.trial_types[ttype.name] = ttype
+
+            step, trial_type = self._parse_step(exp, row, i+2, col_names, last_type_name)
+
+            if step is None:
+                continue
+
+            if trial_type not in exp.trial_types:
+                exp.trial_types[trial_type] = expcompiler.experiment.TrialType(trial_type)
+            exp.trial_types[trial_type].steps.append(step)
+            last_type_name = trial_type
+
+
+    #-----------------------------------------------------------------------------
+    def _parse_step(self, exp, row, xls_line_num, col_names, last_type_name):
+        """
+        Parse one step of a trial - i.e. one line from the trial_types worksheet
+
+        :param exp: The Experiment object
+        :param row: The row from the DataFrame
+        :param xls_line_num: The Excel line number
+        :param col_names: Names of the columns that exist in this worksheet
+        :param last_type_name: Name of the previous
+        """
+
+        type_name = self._parse_trial_type(col_names, last_type_name, row, xls_line_num)
+        step_num = self._step_num(exp, type_name)
+        field_names = self._parse_trial_type_field_names(exp, row, xls_line_num)
+        response_names = self._parse_trial_type_responses(exp, row, xls_line_num, col_names)
+
+        duration = self._parse_positive_float(row, 'duration', col_names, expcompiler.xlsreader.XlsReader.ws_trial_type,
+                                              xls_line_num, mandatory=False, default_value=None, zero_allowed=False)
+        delay_before = self._parse_positive_float(row, 'delay-before', col_names, expcompiler.xlsreader.XlsReader.ws_trial_type,
+                                                  xls_line_num, mandatory=False, default_value=None, zero_allowed=True)
+        delay_after = self._parse_positive_float(row, 'delay-after', col_names,  expcompiler.xlsreader.XlsReader.ws_trial_type,
+                                                 xls_line_num, mandatory=False, default_value=None, zero_allowed=True)
+
+        step = expcompiler.experiment.TrialStep(step_num, field_names, response_names, duration, delay_before, delay_after)
+
+        return step, type_name
+
+
+    #-----------------------------------------------------------------------------
+    def _parse_trial_type(self, col_names, last_type_name, row, xls_line_num):
+
+        if 'type' not in col_names:
+            return expcompiler.experiment.TrialType.default_name
+
+        type_name = row.type
+        if _isempty(type_name):
+            if last_type_name is None:
+                type_name = expcompiler.experiment.TrialType.default_name
+                self.logger.error('Error in worksheet "{}", line {}: "type" was not specified. Type="{}" will be used, but this is invalid.'
+                                  .format(expcompiler.xlsreader.XlsReader.ws_trial_type, xls_line_num, type_name), 'TRIAL_TYPE_MISSING')
+                self.errors_found = True
+            else:
+                type_name = last_type_name
+                self.logger.error(
+                    'Warning in worksheet "{}", line {}: "type" was not specified. Assuming this step belongs to the last specified trial type ({}).'
+                    .format(expcompiler.xlsreader.XlsReader.ws_trial_type, xls_line_num, type_name), 'TRIAL_TYPE_MISSING')
+                self.warnings_found = True
+
+        else:
+            type_name = str(type_name)
+
+        return type_name
+
+
+    #-----------------------------------------------------------------------------
+    # noinspection PyMethodMayBeStatic
+    def _step_num(self, exp, trial_type):
+
+        if trial_type in exp.trial_types:
+            return len(exp.trial_types[trial_type].steps) + 1
+
+        else:
+            return 1
+
+
+    #-----------------------------------------------------------------------------
+    def _parse_trial_type_field_names(self, exp, row, xls_line_num):
+
+        fields_str = row.fields
+        if _isempty(fields_str) or fields_str == "":
+            # todo is this valid?
+            return ()
+        else:
+            fields = [f.strip() for f in fields_str.split(",")]
+
+        #-- Avoid duplicate fields
+        if len(fields) != len(set(fields)):
+            self.logger.error('Warning in worksheet "{}", line {}, column "fields": some fields were specified more than once  (the duplicates were ignored).'
+                              .format(expcompiler.xlsreader.XlsReader.ws_trial_type, xls_line_num), 'TRIAL_TYPE_DUPLICATE_FIELDS')
+            self.warnings_found = True
+            fields = list(set(fields))
+
+        #-- Validate that the fields actually exist
+        invalid_fields = [fld for fld in fields if fld not in exp.layout]
+        if len(invalid_fields) > 0:
+            self.logger.error('Error in worksheet "{}", line {}: the field/s "{}" were not specified in the "{}" worksheet. They were ignored.'
+                              .format(expcompiler.xlsreader.XlsReader.ws_trial_type, xls_line_num, ",".join(invalid_fields),
+                                      expcompiler.xlsreader.XlsReader.ws_layout), 'TRIAL_TYPE_INVALID_FIELD_NAMES')
+            self.errors_found = True
+            fields = [fld for fld in fields if fld not in invalid_fields]
+
+        if len(fields) == 0:
+            return None
+
+        return fields
+
+
+    #-----------------------------------------------------------------------------
+    def _parse_trial_type_responses(self, exp, row, xls_line_num, col_names):
+
+        if 'responses' not in col_names:
+            return None
+
+        responses_str = row.responses
+        if _isempty(responses_str) or responses_str == "":
+            return None
+        else:
+            responses = [r.strip() for r in responses_str.split(",")]
+
+        #-- Avoid duplicate responses
+        if len(responses) != len(set(responses)):
+            self.logger.error('Warning in worksheet "{}", line {}, column "responses": some responses were specified more than once (the duplicates were ignored).'
+                              .format(expcompiler.xlsreader.XlsReader.ws_trial_type, xls_line_num), 'TRIAL_TYPE_DUPLICATE_RESPONSES')
+            self.warnings_found = True
+            responses = list(set(responses))
+
+        #-- Validate that the responses actually exist
+        invalid_resp = [r for r in responses if r not in exp.responses]
+        if len(invalid_resp) > 0:
+            self.logger.error('Error in worksheet "{}", line {}: the response/s "{}" were not specified in the "{}" worksheet. They were ignored.'
+                              .format(expcompiler.xlsreader.XlsReader.ws_trial_type, xls_line_num, ",".join(invalid_resp),
+                                      expcompiler.xlsreader.XlsReader.ws_response), 'TRIAL_TYPE_INVALID_RESPONSE_NAMES')
+            self.errors_found = True
+            responses = [r for r in responses if r not in invalid_resp]
+
+        if len(responses) == 0:
+            return None
+
+        return responses
+
+
+    #-----------------------------------------------------------------------------
+    def _parse_positive_float(self, row, col_name, col_names, ws_name, xls_line_num, mandatory, default_value, zero_allowed=False):
+
+        if col_name not in col_names:
+            if mandatory:
+                self.logger.error('Error in worksheet "{}", line {}: column "{}" is missing'.format(ws_name, xls_line_num, col_name), 'MISSING_COL')
+                self.errors_found = True
+                return default_value
+            else:
+                return default_value
+
+        value = row[col_name]
+        try:
+            fval = float(value)
+        except ValueError:
+            self.logger.error('Error in worksheet "{}", line {}, column "{}": the value "{}" is invalid (expecting a {} float number'
+                              .format(ws_name, xls_line_num, col_name, value, 'non-negative' if zero_allowed else 'positive'), 'NON_FLOAT_VAL')
+            self.errors_found = True
+            return default_value
+
+        if fval < 0 or (not zero_allowed and fval == 0):
+            self.logger.error('Error in worksheet "{}", line {}, column "{}": the value "{}" is invalid (only value {} 0 is allowed)'
+                              .format(ws_name, xls_line_num, col_name, value, '>=' if zero_allowed else '>'), 'INVALID_FLOAT_VAL')
+            self.errors_found = True
+
+        return fval
 
 
     #=========================================================================================
@@ -393,10 +567,10 @@ class Parser(object):
 
 
     #-----------------------------------------------------------------------------
-    def _parse_number(self, value, ws_name, col_name, rownum):
+    def _parse_number(self, value, ws_name, col_name, xls_line_num):
         if value is None:
             self.logger.error('Error in worksheet "{}", column {}, line {}: Empty value is invalid, expecting a number'
-                              .format(ws_name, col_name, rownum), 'INVALID_NUMERIC_VALUE')
+                              .format(ws_name, col_name, xls_line_num), 'INVALID_NUMERIC_VALUE')
             self.errors_found = True
             return None
 
@@ -408,15 +582,15 @@ class Parser(object):
             pass
 
         self.logger.error('Error in worksheet "{}", column {}, line {}: The value "{}" is invalid, expecting a number'
-                          .format(ws_name, col_name, rownum, value), 'INVALID_NUMERIC_VALUE')
+                          .format(ws_name, col_name, xls_line_num, value), 'INVALID_NUMERIC_VALUE')
         self.errors_found = True
         return None
 
 
     #-----------------------------------------------------------------------------
-    def _parse_position(self, value, ws_name, col_name, rownum):
+    def _parse_position(self, value, ws_name, col_name, xls_line_num):
         if value is None:
-            self.logger.error('Error in worksheet "{}", column {}, line {}: Empty value is invalid, '.format(ws_name, col_name, rownum)+
+            self.logger.error('Error in worksheet "{}", column {}, line {}: Empty value is invalid, '.format(ws_name, col_name, xls_line_num) +
                               Parser.valid_position, 'EMPTY_COORD')
             self.errors_found = True
             return None
@@ -434,7 +608,7 @@ class Parser(object):
 
         m = re.match('^(-?\\d+(\\.\\d+)?)(\\s*)((px)|%)$', value)
         if m is None:
-            self.logger.error('Error in worksheet "{}", column {}, line {}: The value "{}" is invalid, '.format(ws_name, col_name, rownum, value)+
+            self.logger.error('Error in worksheet "{}", column {}, line {}: The value "{}" is invalid, '.format(ws_name, col_name, xls_line_num, value) +
                               Parser.valid_position, 'INVALID_COORD')
             self.errors_found = True
             return None
