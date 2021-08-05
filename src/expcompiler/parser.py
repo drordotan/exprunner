@@ -483,7 +483,7 @@ class Parser(object):
     #-----------------------------------------------------------------------------
     def _parse_positive_float(self, row, col_name, col_names, ws_name, xls_line_num, mandatory, default_value, zero_allowed=False):
 
-        if col_name not in col_names:
+        if col_name not in col_names or _isempty(row[col_name]) or row[col_name] == '':
             if mandatory:
                 self.logger.error('Error in worksheet "{}", line {}: column "{}" is missing'.format(ws_name, xls_line_num, col_name), 'MISSING_COL')
                 self.errors_found = True

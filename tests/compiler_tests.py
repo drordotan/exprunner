@@ -469,23 +469,116 @@ class TrialTypesTests(unittest.TestCase):
     # Duration
     #--------------------------------------------------------
 
-    #todo: no duration
-    #todo: valid duration (float)
-    #todo: duration=0: invalid
-    #todo: duration<0: invalid
-    #todo: non-numeric duration: invalid
+    def test_no_duration(self):
+        parser = test_parse(trial_types=[TType('a', type='t')], layout=[Text('a', '')])
+        self.assertFalse(parser.errors_found)
+        self.assertFalse(parser.warnings_found)
+
+    def test_valid_duration(self):
+        parser, exp = test_parse(trial_types=[TType('a', type='t', duration='1.5')], layout=[Text('a', '')], return_exp=True)
+        self.assertFalse(parser.errors_found)
+        self.assertFalse(parser.warnings_found)
+        self.assertEqual(1.5, exp.trial_types['t'].steps[0].duration)
+
+    def test_duration_0_is_invalid(self):
+        parser = test_parse(trial_types=[TType('a', type='t', duration='0')], layout=[Text('a', '')])
+        self.assertTrue(parser.errors_found)
+        self.assertTrue('INVALID_NUMERIC_VALUE' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+
+    def test_negative_duration_is_invalid(self):
+        parser = test_parse(trial_types=[TType('a', type='t', duration=-5)], layout=[Text('a', '')])
+        self.assertTrue(parser.errors_found)
+        self.assertTrue('INVALID_NUMERIC_VALUE' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+
+    def test_string_duration_is_invalid(self):
+        parser = test_parse(trial_types=[TType('a', type='t', duration='hi')], layout=[Text('a', '')])
+        self.assertTrue(parser.errors_found)
+        self.assertTrue('NON_NUMERIC_VALUE' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+
+    def test_empty_duration_is_valid(self):
+        parser, exp = test_parse(trial_types=[TType('a', type='t', duration='')], layout=[Text('a', '')], return_exp=True)
+        self.assertFalse(parser.errors_found)
+        self.assertFalse(parser.warnings_found)
+        self.assertIsNone(exp.trial_types['t'].steps[0].duration)
+
+    def test_duration_none_is_valid(self):
+        parser, exp = test_parse(trial_types=[TType('a', type='t', duration=None)], layout=[Text('a', '')], return_exp=True)
+        self.assertFalse(parser.errors_found)
+        self.assertFalse(parser.warnings_found)
+        self.assertIsNone(exp.trial_types['t'].steps[0].duration)
 
     #--------------------------------------------------------
     # Delay before/after trial
     #--------------------------------------------------------
 
-    #todo: no delay-before
-    #todo: valid delay-before (float)
-    #todo: delay-before=0: valid
-    #todo: delay-before<0: invalid
-    #todo: non-numeric delay-before: invalid
+    def test_valid_delay_before(self):
+        parser, exp = test_parse(trial_types=[TType('a', type='t', delay_before='1.5')], layout=[Text('a', '')], return_exp=True)
+        self.assertFalse(parser.errors_found)
+        self.assertFalse(parser.warnings_found)
+        self.assertEqual(1.5, exp.trial_types['t'].steps[0].delay_before)
 
-    #todo: same for delay-after
+    def test_valid_delay_before_0(self):
+        parser, exp = test_parse(trial_types=[TType('a', type='t', delay_before=0)], layout=[Text('a', '')], return_exp=True)
+        self.assertFalse(parser.errors_found)
+        self.assertFalse(parser.warnings_found)
+        self.assertEqual(0, exp.trial_types['t'].steps[0].delay_before)
+
+    def test_negative_delay_before_is_invalid(self):
+        parser, exp = test_parse(trial_types=[TType('a', type='t', delay_before=-1)], layout=[Text('a', '')], return_exp=True)
+        self.assertTrue(parser.errors_found)
+        self.assertTrue('INVALID_NUMERIC_VALUE' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+
+    def test_str_delay_before_is_invalid(self):
+        parser, exp = test_parse(trial_types=[TType('a', type='t', delay_before='abc')], layout=[Text('a', '')], return_exp=True)
+        self.assertTrue(parser.errors_found)
+        self.assertTrue('NON_NUMERIC_VALUE' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+
+    def test_empty_delay_before_is_valid(self):
+        parser, exp = test_parse(trial_types=[TType('a', type='t', delay_before='')], layout=[Text('a', '')], return_exp=True)
+        self.assertFalse(parser.errors_found)
+        self.assertFalse(parser.warnings_found)
+        self.assertEqual(0, exp.trial_types['t'].steps[0].delay_before)
+
+    def test_none_delay_before_is_valid(self):
+        parser, exp = test_parse(trial_types=[TType('a', type='t', delay_before=None)], layout=[Text('a', '')], return_exp=True)
+        self.assertFalse(parser.errors_found)
+        self.assertFalse(parser.warnings_found)
+        self.assertEqual(0, exp.trial_types['t'].steps[0].delay_before)
+
+
+    def test_valid_delay_after(self):
+        parser, exp = test_parse(trial_types=[TType('a', type='t', delay_after='1.5')], layout=[Text('a', '')], return_exp=True)
+        self.assertFalse(parser.errors_found)
+        self.assertFalse(parser.warnings_found)
+        self.assertEqual(1.5, exp.trial_types['t'].steps[0].delay_after)
+
+    def test_valid_delay_after_0(self):
+        parser, exp = test_parse(trial_types=[TType('a', type='t', delay_after=0)], layout=[Text('a', '')], return_exp=True)
+        self.assertFalse(parser.errors_found)
+        self.assertFalse(parser.warnings_found)
+        self.assertEqual(0, exp.trial_types['t'].steps[0].delay_after)
+
+    def test_negative_delay_after_is_invalid(self):
+        parser, exp = test_parse(trial_types=[TType('a', type='t', delay_after=-1)], layout=[Text('a', '')], return_exp=True)
+        self.assertTrue(parser.errors_found)
+        self.assertTrue('INVALID_NUMERIC_VALUE' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+
+    def test_str_delay_after_is_invalid(self):
+        parser, exp = test_parse(trial_types=[TType('a', type='t', delay_after='abc')], layout=[Text('a', '')], return_exp=True)
+        self.assertTrue(parser.errors_found)
+        self.assertTrue('NON_NUMERIC_VALUE' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+
+    def test_empty_delay_after_is_valid(self):
+        parser, exp = test_parse(trial_types=[TType('a', type='t', delay_after='')], layout=[Text('a', '')], return_exp=True)
+        self.assertFalse(parser.errors_found)
+        self.assertFalse(parser.warnings_found)
+        self.assertEqual(0, exp.trial_types['t'].steps[0].delay_after)
+
+    def test_none_delay_after_is_valid(self):
+        parser, exp = test_parse(trial_types=[TType('a', type='t', delay_after=None)], layout=[Text('a', '')], return_exp=True)
+        self.assertFalse(parser.errors_found)
+        self.assertFalse(parser.warnings_found)
+        self.assertEqual(0, exp.trial_types['t'].steps[0].delay_after)
 
 
 if __name__ == '__main__':
