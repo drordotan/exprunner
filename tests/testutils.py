@@ -30,7 +30,7 @@ class ReaderForTests(object):
     def layout(self):
         return self._layout
 
-    def trial_types(self):
+    def trial_type(self):
         return self._trial_types
 
     def response_modes(self):
@@ -43,5 +43,15 @@ class ReaderForTests(object):
 
 class ParserForTests(Parser):
 
-    def __init__(self, reader=None):
+    def __init__(self, reader=None, parse_trial_types=False, parse_layout=False):
         super().__init__(None, reader=reader)
+        self.do_parse_ttype = parse_trial_types
+        self.do_parse_layout = parse_layout
+
+    def parse_layout(self, exp):
+        if self.do_parse_layout:
+            super().parse_layout(exp)
+
+    def parse_trial_type(self, exp):
+        if self.do_parse_ttype:
+            super().parse_trial_type(exp)

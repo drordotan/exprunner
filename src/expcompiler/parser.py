@@ -130,6 +130,12 @@ class Parser(object):
         Parse the "layout" worksheet, which contains one line per control
         """
         df = self.reader.layout()
+        if df.shape[0] == 0:
+            self.logger.error('Error in worksheet "{}": the worksheet is empty.'.format(expcompiler.xlsreader.XlsReader.ws_layout),
+                              'NO_CONTROLS')
+            self.errors_found = True
+            return
+
         for i, row in df.iterrows():
             ctl = self._parse_layout_control(exp, row, i+2)
             if ctl is not None:
@@ -309,6 +315,12 @@ class Parser(object):
         Parse the "trial_type" worksheet, which contains one line per trial type
         """
         df = self.reader.trial_type()
+        if df.shape[0] == 0:
+            self.logger.error('Error in worksheet "{}": no trial types were specified.'.format(expcompiler.xlsreader.XlsReader.ws_trial_type),
+                              'NO_TRIAL_TYPES')
+            self.errors_found = True
+            return
+
         col_names = tuple(df)
         last_type_name = None
 
@@ -345,11 +357,14 @@ class Parser(object):
         duration = self._parse_positive_float(row, 'duration', col_names, expcompiler.xlsreader.XlsReader.ws_trial_type,
                                               xls_line_num, mandatory=False, default_value=None, zero_allowed=False)
         delay_before = self._parse_positive_float(row, 'delay-before', col_names, expcompiler.xlsreader.XlsReader.ws_trial_type,
-                                                  xls_line_num, mandatory=False, default_value=None, zero_allowed=True)
+                                                  xls_line_num, mandatory=False, default_value=0, zero_allowed=True)
         delay_after = self._parse_positive_float(row, 'delay-after', col_names,  expcompiler.xlsreader.XlsReader.ws_trial_type,
-                                                 xls_line_num, mandatory=False, default_value=None, zero_allowed=True)
+                                                 xls_line_num, mandatory=False, default_value=0, zero_allowed=True)
 
-        step = expcompiler.experiment.TrialStep(step_num, field_names, response_names, duration, delay_before, delay_after)
+        if field_names is None:
+            step = None
+        else:
+            step = expcompiler.experiment.TrialStep(step_num, field_names, response_names, duration, delay_before, delay_after)
 
         return step, type_name
 
@@ -396,7 +411,9 @@ class Parser(object):
 
         fields_str = row.fields
         if _isempty(fields_str) or fields_str == "":
-            # todo is this valid?
+            self.logger.error('Warning in worksheet "{}", line {}: No value was specified in the "fields" column.'
+                              .format(expcompiler.xlsreader.XlsReader.ws_trial_type, xls_line_num), 'TRIAL_TYPE_NO_FIELDS')
+            self.errors_found = True
             return ()
         else:
             fields = [f.strip() for f in fields_str.split(",")]
@@ -454,6 +471,12 @@ class Parser(object):
         if len(responses) == 0:
             return None
 
+        response_types = set([type(exp.responses[r]) for r in responses])
+        if len(response_types) > 1:
+            self.logger.error('Warning in worksheet "{}", line {}: the response/s "{}" are of several types. Normally, all responses in a single step are of the same type.'
+                              .format(expcompiler.xlsreader.XlsReader.ws_trial_type, xls_line_num, ",".join(responses)), 'TRIAL_TYPE_MULTIPLE_RESPONSE_TYPES')
+            self.warnings_found = True
+
         return responses
 
 
@@ -473,13 +496,13 @@ class Parser(object):
             fval = float(value)
         except ValueError:
             self.logger.error('Error in worksheet "{}", line {}, column "{}": the value "{}" is invalid (expecting a {} float number'
-                              .format(ws_name, xls_line_num, col_name, value, 'non-negative' if zero_allowed else 'positive'), 'NON_FLOAT_VAL')
+                              .format(ws_name, xls_line_num, col_name, value, 'non-negative' if zero_allowed else 'positive'), 'NON_NUMERIC_VALUE')
             self.errors_found = True
             return default_value
 
         if fval < 0 or (not zero_allowed and fval == 0):
             self.logger.error('Error in worksheet "{}", line {}, column "{}": the value "{}" is invalid (only value {} 0 is allowed)'
-                              .format(ws_name, xls_line_num, col_name, value, '>=' if zero_allowed else '>'), 'INVALID_FLOAT_VAL')
+                              .format(ws_name, xls_line_num, col_name, value, '>=' if zero_allowed else '>'), 'INVALID_NUMERIC_VALUE')
             self.errors_found = True
 
         return fval
