@@ -1,4 +1,6 @@
-
+"""
+Parse an excel file with the experiment definitions (stage 1 of the compilation)
+"""
 import webcolors
 import re
 from numbers import Number
@@ -44,7 +46,7 @@ class Parser(object):
         self.parse_layout(exp)
         self.parse_responses(exp)
         self.parse_trial_type(exp)
-        #todo self.parse_trials(exp)
+        self.parse_trials(exp)
 
         return exp
 
@@ -78,18 +80,22 @@ class Parser(object):
         if background_color is not None:
             self._validate_color_code(background_color, expcompiler.xlsreader.XlsReader.ws_general, 'parameter "background_color"')
 
+        title = self._get_param(df, 'title', as_str=True) or ''
+        instructions = self._get_param_multi_values(df, 'instructions', as_str=True)
+        instructions = [i for i in instructions if not _isempty(i) and i != '']
+
         exp = expcompiler.experiment.Experiment(get_subj_id=get_subj_id,
                                                 get_session_id=get_session_id,
                                                 results_filename=results_filename,
                                                 background_color=background_color,
                                                 full_screen=full_screen,
-                                                instructions=self._get_param_multi_values(df, 'instructions'))
-
+                                                title=title,
+                                                instructions=instructions)
         return exp
 
 
     #-----------------------------------------------------------------------------
-    def _get_param(self, df, param_name):
+    def _get_param(self, df, param_name, as_str=False):
         """
         Get a config parameter from the "general" worksheet.
         There must be only one row with this parameter name
@@ -100,16 +106,22 @@ class Parser(object):
         df = df[df.param.str.lower() == param_name]
         if df.shape[0] == 0:
             return None
-        elif df.shape[0] == 1:
-            return df.reset_index().value[0]
-        else:
+
+        if df.shape[0] > 1:
             self.logger.error('Error in worksheet "{}": the parameter "{}" can only appear once but it appears 2 or more times'.
                               format(expcompiler.xlsreader.XlsReader.ws_general, param_name), 'MULTIPLE_PARAM_VALUES')
+            self.errors_found = True
+
+        result = df.reset_index().value[0]
+        if as_str and result is not None:
+            result = str(result)
+
+        return result
 
 
     #-----------------------------------------------------------------------------
     # noinspection PyMethodMayBeStatic
-    def _get_param_multi_values(self, df, param_name):
+    def _get_param_multi_values(self, df, param_name, as_str=False):
         """
         Get a config parameter from the "general" worksheet.
         The parameter may have multiple values
@@ -117,7 +129,11 @@ class Parser(object):
         if df.shape[0] == 0:
             return []
 
-        return tuple(df.value[df.param.str.lower() == param_name])
+        result = df.value[df.param.str.lower() == param_name]
+        if as_str:
+            result = [str(r) for r in result]
+
+        return tuple(result)
 
 
     #=========================================================================================
@@ -509,6 +525,15 @@ class Parser(object):
 
 
     #=========================================================================================
+    # Trials
+    #=========================================================================================
+
+    def parse_trials(self, exp):
+
+        pass
+
+
+    #=========================================================================================
     # Parsing specific fields
     #=========================================================================================
 
@@ -650,17 +675,3 @@ def _isempty(value):
 def _nan_to_none(value):
     return None if _isempty(value) else value
 
-
-#-----------------------------------------------------------------------------
-def compile_exp(src_fn, target_fn, reader=None):
-    parser = Parser(src_fn, reader)
-    exp = parser.parse()
-
-    if exp is None or parser.errors_found:
-        return 2
-    elif parser.warnings_found:
-        return 1
-    else:
-        return 0
-
-    #todo write js file

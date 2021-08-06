@@ -190,6 +190,75 @@ class GeneralWsTests(unittest.TestCase):
         self.assertFalse(parser.errors_found)
         self.assertTrue(parser.warnings_found)
 
+    #--------------------------------------------------------
+    # Title
+    #--------------------------------------------------------
+
+    def test_title_default(self):
+        parser, exp = test_parse(general=[], return_exp=True)
+        self.assertFalse(parser.errors_found)
+        self.assertFalse(parser.warnings_found)
+        self.assertEqual('', exp.title)
+
+    def test_title_none(self):
+        parser, exp = test_parse(general=[G('title', None)], return_exp=True)
+        self.assertFalse(parser.errors_found)
+        self.assertFalse(parser.warnings_found)
+        self.assertEqual('', exp.title)
+
+    def test_title_str(self):
+        parser, exp = test_parse(general=[G('title', 'my title')], return_exp=True)
+        self.assertFalse(parser.errors_found)
+        self.assertFalse(parser.warnings_found)
+        self.assertEqual('my title', exp.title)
+
+    def test_title_numeric(self):
+        parser, exp = test_parse(general=[G('title', 5)], return_exp=True)
+        self.assertFalse(parser.errors_found)
+        self.assertFalse(parser.warnings_found)
+        self.assertEqual('5', exp.title)
+
+    def test_title_duplicate(self):
+        parser, exp = test_parse(general=[G('title', 't1'), G('title', 't2')], return_exp=True)
+        self.assertTrue(parser.errors_found)
+        self.assertTrue('MULTIPLE_PARAM_VALUES' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+        self.assertEqual('t1', exp.title)
+
+
+    #--------------------------------------------------------
+    # Instructions
+    #--------------------------------------------------------
+
+    def test_instructions_default(self):
+        parser, exp = test_parse(general=[], return_exp=True)
+        self.assertFalse(parser.errors_found)
+        self.assertFalse(parser.warnings_found)
+        self.assertEqual((), exp.instructions)
+
+    def test_instructions_once(self):
+        parser, exp = test_parse(general=[G('instructions', 'line 1')], return_exp=True)
+        self.assertFalse(parser.errors_found)
+        self.assertFalse(parser.warnings_found)
+        self.assertEqual(('line 1', ), exp.instructions)
+
+    def test_instructions_once_numeric(self):
+        parser, exp = test_parse(general=[G('instructions', 1)], return_exp=True)
+        self.assertFalse(parser.errors_found)
+        self.assertFalse(parser.warnings_found)
+        self.assertEqual(('1', ), exp.instructions)
+
+    def test_instructions_multiple(self):
+        parser, exp = test_parse(general=[G('instructions', 'line 1'), G('instructions', 'line 2'), G('instructions', 'line 3')], return_exp=True)
+        self.assertFalse(parser.errors_found)
+        self.assertFalse(parser.warnings_found)
+        self.assertEqual(('line 1', 'line 2', 'line 3'), exp.instructions)
+
+    def test_instructions_empty_value_ignored(self):
+        parser, exp = test_parse(general=[G('instructions', 'line 1'), G('instructions', ''), G('instructions', 'line 3')], return_exp=True)
+        self.assertFalse(parser.errors_found)
+        self.assertFalse(parser.warnings_found)
+        self.assertEqual(('line 1', 'line 3'), exp.instructions)
+
 
 #=============================================================================================
 class LayoutTests(unittest.TestCase):
@@ -580,6 +649,10 @@ class TrialTypesTests(unittest.TestCase):
         self.assertFalse(parser.warnings_found)
         self.assertEqual(0, exp.trial_types['t'].steps[0].delay_after)
 
+
+#todo trials
+
+#todo instructions - with trial flow potentially
 
 if __name__ == '__main__':
     unittest.main()
