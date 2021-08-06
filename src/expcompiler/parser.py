@@ -8,8 +8,8 @@ import math
 
 import expcompiler
 
-_invalid_value = '__INVALID_VALUE__'
 
+#todo support sounds
 
 #===============================================================================================================================
 class Parser(object):
@@ -21,10 +21,11 @@ class Parser(object):
     def __init__(self, filename, reader=None, logger=None):
         self.logger = logger or expcompiler.logger.Logger()
         self.reader = reader or expcompiler.xlsreader.XlsReader(filename, logger=self.logger)
+        self.errors_found = False
+        self.warnings_found = False
 
 
     #-----------------------------------------------------------------------------
-    # noinspection PyAttributeOutsideInit
     def parse(self):
         """
         Compile the experiment into a script.
@@ -307,6 +308,7 @@ class Parser(object):
 
     #-----------------------------------------------------------------------------
     def _parse_button_response(self, row, xls_line_num, resp_id, value, col_names):
+
         if 'text' not in col_names:
             text = 'N/A'
             if 'MISSING_BUTTON_RESPONSE_TEXT_COL' not in self.logger.err_codes:
@@ -377,7 +379,9 @@ class Parser(object):
         delay_after = self._parse_positive_float(row, 'delay-after', col_names,  expcompiler.xlsreader.XlsReader.ws_trial_type,
                                                  xls_line_num, mandatory=False, default_value=0, zero_allowed=True)
 
-        if field_names is None:
+        #todo parse CSS entries
+
+        if type_name is None or field_names is None:
             step = None
         else:
             step = expcompiler.experiment.TrialStep(step_num, field_names, response_names, duration, delay_before, delay_after)
@@ -407,6 +411,12 @@ class Parser(object):
 
         else:
             type_name = str(type_name)
+
+        if type_name.lower() == 'type':
+            self.logger.error('Error in worksheet "{}", line {}: A trial type named "{}" is invalid.'
+                              .format(expcompiler.xlsreader.XlsReader.ws_trial_type, xls_line_num, type_name), 'TRIAL_TYPE_INVALID_TYPE_NAME')
+            self.errors_found = True
+            return None
 
         return type_name
 
@@ -528,9 +538,66 @@ class Parser(object):
     # Trials
     #=========================================================================================
 
+    #-----------------------------------------------------------------------------
     def parse_trials(self, exp):
 
-        pass
+        if len(exp.trial_types) == 0:
+            #-- Trials can't be parsed because there are no trial types
+            self.logger.error('All trials were ignored because no trial types are defined', 'TRIALS_IGNORED')
+            return
+
+        df = self.reader.trials()
+        if df.shape[0] == 0:
+            self.logger.error('Error in worksheet "{}": no trials were specified.'.format(expcompiler.xlsreader.XlsReader.ws_trials),
+                              'NO_TRIALS')
+            self.errors_found = True
+            return
+
+        col_names = tuple(df)
+        if 'type' not in col_names and len(exp.trial_types) > 1:
+            self.logger.error('Error in worksheet "{}": When there is more than one trial type, you must specify the "type" column in this worksheet to indicate the type of each trial.'
+                              .format(expcompiler.xlsreader.XlsReader.ws_trials), 'NO_TYPE_IN_TRIALS_WS')
+            self.errors_found = True
+            return
+
+        for i, row in df.iterrows():
+            trial = self._parse_trial(exp, row, i+2, col_names)
+            if trial is not None:
+                exp.trials.append(trial)
+
+
+    #-----------------------------------------------------------------------------
+    def _parse_trial(self, exp, row, xls_line_num, col_names):
+
+        if 'type' in col_names:
+            type_name = row.type
+        else:
+            type_name = tuple(exp.trial_types.keys())[0]
+
+        if _isempty(type_name) or type_name == '':
+            self.logger.error('Error in worksheet "{}", line {}: Trial type was not specified.'
+                              .format(expcompiler.xlsreader.XlsReader.ws_trials, xls_line_num), 'TRIALS_NO_TRIAL_TYPE')
+            self.errors_found = True
+            return None
+
+        if type_name not in exp.trial_types:
+            self.logger.error('Error in worksheet "{}", line {}: Trial type "{}" was not defined in worksheet "{}". This trial was ignored.'
+                              .format(expcompiler.xlsreader.XlsReader.ws_trials, xls_line_num, type_name,
+                                      expcompiler.xlsreader.XlsReader.ws_trial_type), 'TRIALS_INVALID_TRIAL_TYPE')
+            self.errors_found = True
+            return None
+
+        trial = expcompiler.experiment.Trial(type_name)
+        ttype = exp.trial_types[type_name]
+
+        for col in col_names:
+            if col == 'type' or col not in ttype.fields:
+                continue
+            value = row[col]
+            if not _isempty(value) and value != '':
+                trial.field_values[col] = str(value)
+
+        return trial
 
 
     #=========================================================================================

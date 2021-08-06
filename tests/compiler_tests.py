@@ -4,11 +4,20 @@ import unittest
 from testutils import *
 
 
+NO_VALUE = "__NO_VALUE__"
+
+
 #-----------------------------------------------------------------------------
 def test_parse(general=None, layout=None, trial_types=None, responses=None, trials=None, return_exp=False):
+
     reader = ReaderForTests(general=general, layout=layout, trial_types=trial_types, respones=responses, trials=trials)
-    parser = ParserForTests(reader, parse_layout=layout is not None, parse_trial_types=trial_types is not None)
+
+    parser = ParserForTests(reader,
+                            parse_layout=layout is not None,
+                            parse_trial_types=trial_types is not None,
+                            parse_trials=trials is not None)
     exp = parser.parse()
+
     if return_exp:
         return parser, exp
     else:
@@ -63,6 +72,14 @@ def TType(fields, **kwargs):
         kwargs['delay-after'] = kwargs['delay_after']
         del kwargs['delay_after']
 
+    return kwargs
+
+
+#-----------------------------------------------------------------------------
+# noinspection PyPep8Naming
+def Trial(type=NO_VALUE, **kwargs):
+    if type != NO_VALUE:
+        kwargs['type'] = type
     return kwargs
 
 
@@ -426,6 +443,15 @@ class TrialTypesTests(unittest.TestCase):
         self.assertTrue(parser.errors_found)
 
     #--------------------------------------------------------
+    # Type name
+    #--------------------------------------------------------
+
+    def test_invalid_type_name(self):
+        parser = test_parse(trial_types=[TType('f1,f2', type='type')])
+        self.assertTrue(parser.errors_found)
+        self.assertTrue('TRIAL_TYPE_INVALID_TYPE_NAME' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+
+    #--------------------------------------------------------
     # Fields
     #--------------------------------------------------------
 
@@ -645,12 +671,51 @@ class TrialTypesTests(unittest.TestCase):
 
     def test_none_delay_after_is_valid(self):
         parser, exp = test_parse(trial_types=[TType('a', type='t', delay_after=None)], layout=[Text('a', '')], return_exp=True)
-        self.assertFalse(parser.errors_found)
+        self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found)
         self.assertEqual(0, exp.trial_types['t'].steps[0].delay_after)
 
 
-#todo trials
+#=============================================================================================
+class TrialsTests(unittest.TestCase):
+
+    #------------------------------------------
+    # General definitions (no fields yet)
+    #------------------------------------------
+
+    def test_no_trials(self):
+        parser = test_parse(trial_types=[TType('f1')], layout=[Text('f1', '')], trials=[])
+        self.assertTrue(parser.errors_found)
+        self.assertTrue('NO_TRIALS' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+
+    def test_trial_type_can_be_omitted_when_there_is_a_single_type(self):
+        parser = test_parse(trial_types=[TType('f1')], layout=[Text('f1', '')], trials=[Trial()])
+        self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+
+    def test_trial_type_can_be_specified_when_there_is_a_single_type(self):
+        parser = test_parse(trial_types=[TType('f1', type='t1')], layout=[Text('f1', '')], trials=[Trial(type='t1')])
+        self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+
+    def test_trial_col_must_be_specified_when_there_are_multiple_types(self):
+        parser = test_parse(trial_types=[TType('f1', type='t1'), TType('f1', type='t2')], layout=[Text('f1', '')], trials=[Trial()])
+        self.assertTrue(parser.errors_found)
+        self.assertTrue('NO_TYPE_IN_TRIALS_WS' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+
+    def test_trial_type_must_be_specified_when_there_are_multiple_types(self):
+        parser = test_parse(trial_types=[TType('f1', type='t1'), TType('f1', type='t2')], layout=[Text('f1', '')], trials=[Trial(type='')])
+        self.assertTrue(parser.errors_found)
+        self.assertTrue('TRIALS_NO_TRIAL_TYPE' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+
+    def test_unknown_trial_type(self):
+        parser = test_parse(trial_types=[TType('f1', type='t1'), TType('f1', type='t2')], layout=[Text('f1', '')], trials=[Trial(type='ttt')])
+        self.assertTrue(parser.errors_found)
+        self.assertTrue('TRIALS_INVALID_TRIAL_TYPE' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+
+    #------------------------------------------
+    # With fields
+    #------------------------------------------
+
+
 
 #todo instructions - with trial flow potentially
 

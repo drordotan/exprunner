@@ -2,25 +2,19 @@
 import pandas as pd
 from expcompiler.parser import Parser
 
+
+#----------------------------------------------------------------------------------------------
 class ReaderForTests(object):
 
     def __init__(self, general=None, layout=None, trial_types=None, respones=None, trials=None):
-        self._general = self._to_df(general, ['param', 'value'])
-        self._layout = self._to_df(layout, ['field_name', 'type', 'text'])
-        self._trial_types = self._to_df(trial_types, ['fields'])
-        self._respones = self._to_df(respones, ['id', 'type', 'value'])
-        self._trials = self._to_df(trials, [])
+        self._general = _to_df(general, ['param', 'value'])
+        self._layout = _to_df(layout, ['field_name', 'type', 'text'])
+        self._trial_types = _to_df(trial_types, ['fields'])
+        self._respones = _to_df(respones, ['id', 'type', 'value'])
+        self._trials = _to_df(trials, [])
 
 
-    def _to_df(self, data, cols):
-        if data is None:
-            return pd.DataFrame({c: [] for c in cols})
-        elif isinstance(data, (list, tuple, dict)):
-            return pd.DataFrame(data)
-        else:
-            return data
-
-
+    # noinspection PyMethodMayBeStatic
     def open(self):
         return True
 
@@ -40,13 +34,23 @@ class ReaderForTests(object):
         return self._trials
 
 
+def _to_df(data, cols):
+    if data is None:
+        return pd.DataFrame({c: [] for c in cols})
+    elif isinstance(data, (list, tuple, dict)):
+        return pd.DataFrame(data)
+    else:
+        return data
 
+
+#----------------------------------------------------------------------------------------------
 class ParserForTests(Parser):
 
-    def __init__(self, reader=None, parse_trial_types=False, parse_layout=False):
+    def __init__(self, reader=None, parse_trial_types=False, parse_layout=False, parse_trials=False):
         super().__init__(None, reader=reader)
         self.do_parse_ttype = parse_trial_types
         self.do_parse_layout = parse_layout
+        self.do_parse_trials = parse_trials
 
     def parse_layout(self, exp):
         if self.do_parse_layout:
@@ -55,3 +59,7 @@ class ParserForTests(Parser):
     def parse_trial_type(self, exp):
         if self.do_parse_ttype:
             super().parse_trial_type(exp)
+
+    def parse_trials(self, exp):
+        if self.do_parse_trials:
+            super().parse_trials(exp)

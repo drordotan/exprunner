@@ -97,3 +97,11 @@ class TrialStep(object):
         self.duration = duration
         self.delay_before = delay_before
         self.delay_after = delay_after
+
+
+#-----------------------------------------------------------
+class Trial(object):
+
+    def __init__(self, trial_type):
+        self.trial_type = trial_type
+        self.field_values = {}
