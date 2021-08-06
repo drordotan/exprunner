@@ -86,6 +86,14 @@ class TrialType(object):
         self.name = name
         self.steps = []
 
+    @property
+    def fields(self):
+        result = set()
+        for step in self.steps:
+            for fld in step.fields:
+                result.add(fld)
+        return result
+
 
 #-----------------------------------------------------------
 class TrialStep(object):

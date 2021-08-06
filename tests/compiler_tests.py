@@ -456,9 +456,12 @@ class TrialTypesTests(unittest.TestCase):
     #--------------------------------------------------------
 
     def test_valid_fields(self):
-        parser = test_parse(trial_types=[TType('a, b', type='t')], layout=[Text('a', 'text1'), Text('b', 'text2')])
+        parser, exp = test_parse(trial_types=[TType('a, b', type='t')], layout=[Text('a', 'text1'), Text('b', 'text2')], return_exp=True)
         self.assertFalse(parser.errors_found)
         self.assertFalse(parser.warnings_found)
+        fields = exp.trial_types['t'].fields
+        self.assertTrue('a' in fields, 'Field names: ' + ",".join(fields))
+        self.assertTrue('b' in fields, 'Field names: ' + ",".join(fields))
 
     def test_valid_fields_with_numeric_name(self):
         parser = test_parse(trial_types=[TType('1, 2', type='t')], layout=[Text(1, 'text1'), Text(2, 'text2')])
@@ -715,6 +718,38 @@ class TrialsTests(unittest.TestCase):
     # With fields
     #------------------------------------------
 
+    #----------------
+    def test_fields_assigned(self):
+        parser, exp = test_parse(trial_types=[TType('f1', type='t1')], layout=[Text('f1', '')],
+                                 trials=[Trial(type='t1', f1='hello')],
+                                 return_exp=True)
+        self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+        self.assertEqual('hello', exp.trials[0].field_values['f1'], 'Field values: {}'.format(exp.trials[0].field_values))
+
+    #----------------
+    def test_multiple_fields_assigned(self):
+        parser, exp = test_parse(trial_types=[TType('f1,f2', type='t1')], layout=[Text('f1', ''), Text('f2', '')],
+                                 trials=[Trial(type='t1', f1='hello', f2='there')],
+                                 return_exp=True)
+        self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+        self.assertEqual('hello', exp.trials[0].field_values['f1'], 'Field values: {}'.format(exp.trials[0].field_values))
+        self.assertEqual('there', exp.trials[0].field_values['f2'], 'Field values: {}'.format(exp.trials[0].field_values))
+
+    #----------------
+    def test_excessive_fields_ignored(self):
+        parser, exp = test_parse(trial_types=[TType('f1', type='t1')], layout=[Text('f1', ''), Text('f2', '')],
+                                 trials=[Trial(type='t1', f1='hello', f2='kuku')],
+                                 return_exp=True)
+        self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+
+    #----------------
+    def test_unknown_fields_are_invalid(self):
+        parser, exp = test_parse(trial_types=[TType('f1', type='t1')], layout=[Text('f1', ''), Text('f2', '')],
+                                 trials=[Trial(type='t1', f1='hello', f3='kuku')],
+                                 return_exp=True)
+        self.assertFalse(parser.errors_found)
+        self.assertTrue(parser.warnings_found)
+        self.assertTrue('TRIALS_UNKNOWN_FIELDS' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
 
 #todo instructions - with trial flow potentially

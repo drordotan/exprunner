@@ -560,6 +560,13 @@ class Parser(object):
             self.errors_found = True
             return
 
+        for col in col_names:
+            if col != 'type' and col not in exp.layout:
+                self.logger.error('Error in worksheet "{}": Field "{}" is unknown - it was not defined in the "{}" worksheet.'
+                                  .format(expcompiler.xlsreader.XlsReader.ws_trials, col,
+                                          expcompiler.xlsreader.XlsReader.ws_trial_type), 'TRIALS_UNKNOWN_FIELDS')
+                self.warnings_found = True
+
         for i, row in df.iterrows():
             trial = self._parse_trial(exp, row, i+2, col_names)
             if trial is not None:
@@ -591,8 +598,13 @@ class Parser(object):
         ttype = exp.trial_types[type_name]
 
         for col in col_names:
-            if col == 'type' or col not in ttype.fields:
+
+            if col == 'type':
                 continue
+
+            if col not in ttype.fields:
+                continue
+
             value = row[col]
             if not _isempty(value) and value != '':
                 trial.field_values[col] = str(value)
