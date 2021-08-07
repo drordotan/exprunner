@@ -5,46 +5,30 @@ Generate the experiment script
 import os
 import html
 
+import expcompiler
 import expcompiler.experiment as expobj
 
 
 class ExpGenerator(object):
 
     #----------------------------------------------------------------------------
-    def __init__(self):
+    def __init__(self, logger):
         self.template = self._load_template()
+        self.logger = logger
+        self.errors_found = False
 
 
     #----------------------------------------------------------------------------
     def generate(self, exp):
 
+        self.errors_found = False
         script = self.template
 
-        if '${title}' in script:
-            script = script.replace('${title}', self.generate_title_part(exp))
-
-        if '${layout_css}' in script:
-            script = script.replace('${layout_css}', self.generate_layout_css(exp))
-        else:
-            #todo error
-            pass
-
-        """
-        if '${instructions}' in script:
-            script = script.replace('${instructions}', self.generate_instructions(exp))
-
-        if '${trials}' in script:
-            script = script.replace('${trials}', self.generate_trials(exp))
-        else:
-            #todo error
-            pass
-
-        if '${trial_flow}' in script:
-            script = script.replace('${trial_flow}', self.generate_trial_flow(exp))
-        else:
-            #todo error
-            pass
-        """
+        script = script.replace('${title}', self.generate_title_part(exp))
+        script = script.replace('${layout_css}', self.generate_layout_css(exp))
+        # script = script.replace('${instructions}', self.generate_instructions(exp))
+        # script = script.replace('${trials}', self.generate_trials(exp))
+        # script = script.replace('${trial_flow}', self.generate_trial_flow(exp))
 
         return script
 
