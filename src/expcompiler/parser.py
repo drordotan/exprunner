@@ -1,6 +1,7 @@
 """
 Parse an excel file with the experiment definitions (stage 1 of the compilation)
 """
+
 import webcolors
 import re
 from numbers import Number
@@ -10,7 +11,7 @@ import expcompiler
 
 
 _css_prefix = 'format:'
-#todo support sounds
+#todo support sound controls
 
 
 #===============================================================================================================================
@@ -321,7 +322,7 @@ class Parser(object):
             resp = self._parse_key_response(row, xls_line_num, resp_id, value, response_keys, col_names)
 
         elif resp_type == 'button':
-            resp = self._parse_button_response(row, xls_line_num, resp_id, value, col_names)
+            resp = self._parse_button_response(row, resp_id, value, col_names)
 
         else:
             self.logger.error('Error in worksheet "{}", cell {}{}: type="{}" is unknown, only "key" and "button" are supported'.
@@ -366,7 +367,7 @@ class Parser(object):
 
 
     #-----------------------------------------------------------------------------
-    def _parse_button_response(self, row, xls_line_num, resp_id, value, col_names):
+    def _parse_button_response(self, row, resp_id, value, col_names):
 
         if 'text' not in col_names:
             text = 'N/A'
@@ -515,7 +516,7 @@ class Parser(object):
         invalid_controls = [ctl for ctl in control_names if ctl not in exp.layout]
         if len(invalid_controls) > 0:
             self.logger.error('Error in worksheet "{}", cell {}{}: the layout item/s "{}" were not specified in the "{}" worksheet. They were ignored.'
-                              .format(expcompiler.xlsreader.XlsReader.ws_trial_type,col_names['layout items'],  xls_line_num, ",".join(invalid_controls),
+                              .format(expcompiler.xlsreader.XlsReader.ws_trial_type, col_names['layout items'],  xls_line_num, ",".join(invalid_controls),
                                       expcompiler.xlsreader.XlsReader.ws_layout),
                               'TRIAL_TYPE_INVALID_CONTROL_NAMES')
             self.errors_found = True
@@ -651,7 +652,7 @@ class Parser(object):
                 if re.match('^save:\\s*$', col.lower()):
                     self.logger.error(
                         'Error in worksheet "{}": A column named "save:" is invalid, you must write something after the "save:" (e.g., "save:xyz" if you want column "xyz" to appear in the output file).'
-                        .format(expcompiler.xlsreader.XlsReader.ws_trials, col), 'TRIALS_INVALID_SAVE_COL')  # todo test
+                        .format(expcompiler.xlsreader.XlsReader.ws_trials, col), 'TRIALS_INVALID_SAVE_COL')
                     self.errors_found = True
                 else:
                     save_col_names.append(col)
@@ -722,7 +723,6 @@ class Parser(object):
                 trial.save_values[saved_col] = value
 
         #-- Columns indicating the formatting of various controls
-        #todo save
         for col_name, control_name, css_attr in formatting_cols:
             value = _nan_to_none(row[col_name])
             if value is None:
@@ -768,10 +768,11 @@ class Parser(object):
 
 
     #-----------------------------------------------------------------------------
-    def _parse_coord(self, value, ws_name, col_name, xls_col_letter, xls_line_num):
+    def _parse_coord(self, value, ws_name, col_name, xls_col, xls_line_num):
+
         if value is None:
             self.logger.error('Error in worksheet "{}", cell {}{} (column "{}"): Empty value is invalid, '.
-                              format(ws_name, xls_col_letter, xls_line_num, col_name)+
+                              format(ws_name, xls_col, xls_line_num, col_name) +
                               Parser.valid_position, 'EMPTY_COORD')
             self.errors_found = True
             return None
@@ -795,7 +796,7 @@ class Parser(object):
         m = re.match('^(-?\\d+(\\.\\d+)?)(\\s*)((px)|%)$', value)
         if m is None:
             self.logger.error('Error in worksheet "{}", cell {}{} (column "{}"): The value "{}" is invalid, '.
-                              format(ws_name, xls_col_letter, xls_line_num, col_name, value) + Parser.valid_position,
+                              format(ws_name, xls_col, xls_line_num, col_name, value)+Parser.valid_position,
                               'INVALID_COORD')
             self.errors_found = True
             return None
