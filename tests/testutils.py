@@ -24,7 +24,7 @@ class ReaderForTests(object):
     def layout(self):
         return self._layout
 
-    def trial_type(self):
+    def trial_types(self):
         return self._trial_types
 
     def response_modes(self):

@@ -13,13 +13,18 @@ def compile_exp(src_fn, target_fn, reader=None, logger=None):
     :param logger:
     """
     parser = expcompiler.parser.Parser(src_fn, reader=reader, logger=logger)
+    generator = expcompiler.generator.ExpGenerator()
+
     exp = parser.parse()
 
-    if exp is None or parser.errors_found:
+    script = generator.generate(exp)
+    if script is None:
         return 2
-    elif parser.warnings_found:
-        return 1
-    else:
-        return 0
 
-    #todo write the js file
+    with open(target_fn, 'w') as fp:
+        fp.write(script)
+
+    if parser.warnings_found:
+        return 53
+
+    return 0

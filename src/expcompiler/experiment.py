@@ -37,12 +37,13 @@ class Control(object):
 #-----------------------------------------------------------
 class TextControl(Control):
 
-    def __init__(self, name, text="", x=0, y=0, css=None):
+    def __init__(self, name, text, x, y, width, css=None):
         super().__init__(name)
         self.text = text
         self.x = x
         self.y = y
-        self.css = css
+        self.width = width
+        self.css = css or {}
 
 
 #===============================================================================================
@@ -113,3 +114,4 @@ class Trial(object):
     def __init__(self, trial_type):
         self.trial_type = trial_type
         self.field_values = {}
+        self.save_values = {}

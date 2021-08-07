@@ -76,7 +76,7 @@ def TType(fields, **kwargs):
 
 
 #-----------------------------------------------------------------------------
-# noinspection PyPep8Naming
+# noinspection PyPep8Naming,PyShadowingBuiltins
 def Trial(type=NO_VALUE, **kwargs):
     if type != NO_VALUE:
         kwargs['type'] = type
@@ -301,24 +301,34 @@ class LayoutTests(unittest.TestCase):
     #--------------------------------------------------------
 
     def test_specify_x_as_pcnt(self):
-        parser = test_parse(layout=[Text('field1', x='50%')])
+        parser, exp = test_parse(layout=[Text('field1', x='50%')], return_exp=True)
         self.assertFalse(parser.errors_found)
         self.assertFalse(parser.warnings_found)
+        self.assertEqual('50%', list(exp.layout.values())[0].x)
 
     def test_specify_y_as_pcnt(self):
-        parser = test_parse(layout=[Text('field1', y='-50%')])
+        parser, exp = test_parse(layout=[Text('field1', y='-50%')], return_exp=True)
         self.assertFalse(parser.errors_found)
         self.assertFalse(parser.warnings_found)
+        self.assertEqual('-50%', list(exp.layout.values())[0].y)
 
     def test_specify_x_as_px(self):
-        parser = test_parse(layout=[Text('field1', x='-50px')])
+        parser, exp = test_parse(layout=[Text('field1', x='-50px')], return_exp=True)
         self.assertFalse(parser.errors_found)
         self.assertFalse(parser.warnings_found)
+        self.assertEqual('-50px', list(exp.layout.values())[0].x)
 
     def test_specify_y_as_px(self):
-        parser = test_parse(layout=[Text('field1', y='5000px')])
+        parser, exp = test_parse(layout=[Text('field1', y='5000px')], return_exp=True)
         self.assertFalse(parser.errors_found)
         self.assertFalse(parser.warnings_found)
+        self.assertEqual('5000px', list(exp.layout.values())[0].y)
+
+    def test_specify_width_as_px(self):
+        parser, exp = test_parse(layout=[Text('field1', width='30px')], return_exp=True)
+        self.assertFalse(parser.errors_found)
+        self.assertFalse(parser.warnings_found)
+        self.assertEqual('30px', list(exp.layout.values())[0].width)
 
     def test_specify_x_in_invalid_format(self):
         parser = test_parse(layout=[Text('field1', x='5000')])

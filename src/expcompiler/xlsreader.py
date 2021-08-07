@@ -89,7 +89,7 @@ class XlsReader(object):
         if XlsReader.ws_trial_type not in self.worksheets:
             return None
 
-        return self._load_worksheet_as_data_frame(XlsReader.ws_trial_type, ('fields'))
+        return self._load_worksheet_as_data_frame(XlsReader.ws_trial_type, ('fields', ))
 
 
     #--------------------------------------------------
@@ -105,7 +105,7 @@ class XlsReader(object):
         if XlsReader.ws_trials not in self.worksheets:
             return None
 
-        return self._load_worksheet_as_data_frame(XlsReader.ws_response)
+        return self._load_worksheet_as_data_frame(XlsReader.ws_trials)
 
 
 #---------------------------------------------------------------

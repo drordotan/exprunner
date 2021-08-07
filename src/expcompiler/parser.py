@@ -9,6 +9,7 @@ import math
 import expcompiler
 
 
+_css_prefix = 'format:'
 #todo support sounds
 
 #===============================================================================================================================
@@ -83,7 +84,7 @@ class Parser(object):
 
         title = self._get_param(df, 'title', as_str=True) or ''
         instructions = self._get_param_multi_values(df, 'instructions', as_str=True)
-        instructions = [i for i in instructions if not _isempty(i) and i != '']
+        instructions = [i for i in instructions if not _isempty(i)]
 
         exp = expcompiler.experiment.Experiment(get_subj_id=get_subj_id,
                                                 get_session_id=get_session_id,
@@ -188,24 +189,28 @@ class Parser(object):
         text = ""
         x = 0
         y = 0
-        css = None
+        width = '100%'
+        css = {}
+        # todo are there mandatory attributes?
 
         for col_name in row.index:
             if col_name.lower() in ('field_name', 'type'):
                 pass
 
             elif col_name.lower() == 'x':
-                x = self._parse_position(_nan_to_none(row.x), expcompiler.xlsreader.XlsReader.ws_layout, 'x', xls_line_num)
+                x = self._parse_coord(_nan_to_none(row.x), expcompiler.xlsreader.XlsReader.ws_layout, 'x', xls_line_num)
 
             elif col_name.lower() == 'y':
-                y = self._parse_position(_nan_to_none(row.y), expcompiler.xlsreader.XlsReader.ws_layout, 'y', xls_line_num) if 'y' in row else 0
+                y = self._parse_coord(_nan_to_none(row.y), expcompiler.xlsreader.XlsReader.ws_layout, 'y', xls_line_num)
+
+            elif col_name.lower() == 'width':
+                width = self._parse_coord(_nan_to_none(row.width), expcompiler.xlsreader.XlsReader.ws_layout, 'width', xls_line_num)
 
             elif col_name.lower() == 'text':
-                text = str(row.text) if 'text' in row and not _isempty(row.text) else ""
+                text = str(row.text) if 'text' in row and not _isempty(row.text, also_empty_str=False) else ""
 
-            elif col_name.lower().startswith('css:'):
-                css = css or {}
-                css_field_name = col_name.lower()[4:]
+            elif col_name.lower().startswith(_css_prefix):
+                css_field_name = col_name.lower()[len(_css_prefix):]
                 value = row[col_name]
                 css[css_field_name] = "" if _isempty(value) else str(value)
 
@@ -216,7 +221,7 @@ class Parser(object):
 
         field_name = str(row.field_name)
 
-        return expcompiler.experiment.TextControl(field_name, text, x, y, css)
+        return expcompiler.experiment.TextControl(field_name, text, x, y, width, css)
 
 
     #=========================================================================================
@@ -242,7 +247,7 @@ class Parser(object):
     def _parse_one_response(self, exp, row, xls_line_num, col_names, response_keys):
 
         resp_id = row.id
-        if _isempty(resp_id) or resp_id == '':
+        if _isempty(resp_id):
             self.logger.error('Error in worksheet "{}", line {}: response id was not specified, please specify it'.
                               format(expcompiler.xlsreader.XlsReader.ws_response, xls_line_num, row.id), 'MISSING_RESPONSE_ID')
             self.errors_found = True
@@ -290,7 +295,7 @@ class Parser(object):
                 self.errors_found = True
         else:
             key = row.key
-            if _isempty(key) or key == '':
+            if _isempty(key):
                 self.logger.error('Error in worksheet "{}", line {}: key was not specified, please specify it'.
                                   format(expcompiler.xlsreader.XlsReader.ws_response, xls_line_num), 'MISSING_KB_RESPONSE_KEY')
                 self.errors_found = True
@@ -332,7 +337,7 @@ class Parser(object):
         """
         Parse the "trial_type" worksheet, which contains one line per trial type
         """
-        df = self.reader.trial_type()
+        df = self.reader.trial_types()
         if df.shape[0] == 0:
             self.logger.error('Error in worksheet "{}": no trial types were specified.'.format(expcompiler.xlsreader.XlsReader.ws_trial_type),
                               'NO_TRIAL_TYPES')
@@ -436,7 +441,7 @@ class Parser(object):
     def _parse_trial_type_field_names(self, exp, row, xls_line_num):
 
         fields_str = row.fields
-        if _isempty(fields_str) or fields_str == "":
+        if _isempty(fields_str):
             self.logger.error('Warning in worksheet "{}", line {}: No value was specified in the "fields" column.'
                               .format(expcompiler.xlsreader.XlsReader.ws_trial_type, xls_line_num), 'TRIAL_TYPE_NO_FIELDS')
             self.errors_found = True
@@ -473,7 +478,7 @@ class Parser(object):
             return None
 
         responses_str = row.responses
-        if _isempty(responses_str) or responses_str == "":
+        if _isempty(responses_str):
             return None
         else:
             responses = [r.strip() for r in responses_str.split(",")]
@@ -509,7 +514,7 @@ class Parser(object):
     #-----------------------------------------------------------------------------
     def _parse_positive_float(self, row, col_name, col_names, ws_name, xls_line_num, mandatory, default_value, zero_allowed=False):
 
-        if col_name not in col_names or _isempty(row[col_name]) or row[col_name] == '':
+        if col_name not in col_names or _isempty(row[col_name]):
             if mandatory:
                 self.logger.error('Error in worksheet "{}", line {}: column "{}" is missing'.format(ws_name, xls_line_num, col_name), 'MISSING_COL')
                 self.errors_found = True
@@ -560,28 +565,43 @@ class Parser(object):
             self.errors_found = True
             return
 
+        data_col_names = []
+
         for col in col_names:
-            if col != 'type' and col not in exp.layout:
+            if col == 'type':
+                continue
+
+            if col != 'type' and col not in exp.layout and not col.lower().startswith('copy:'):
+                #todo change errors to support format
                 self.logger.error('Error in worksheet "{}": Field "{}" is unknown - it was not defined in the "{}" worksheet.'
                                   .format(expcompiler.xlsreader.XlsReader.ws_trials, col,
                                           expcompiler.xlsreader.XlsReader.ws_trial_type), 'TRIALS_UNKNOWN_FIELDS')
                 self.warnings_found = True
+                continue
+
+            if re.match('^copy:\\s*$', col):
+                self.logger.error('Error in worksheet "{}": A column named "copy:" is invalid, you must write something after the "copy:" (e.g., "copy:xyz" if you want column "xyz" to appear in the output file).'
+                                  .format(expcompiler.xlsreader.XlsReader.ws_trials, col), 'TRIALS_INVALID_COPY_COL')  # todo test
+                self.warnings_found = True
+                continue
+
+            data_col_names.append(col)
 
         for i, row in df.iterrows():
-            trial = self._parse_trial(exp, row, i+2, col_names)
+            trial = self._parse_trial(exp, row, i+2, data_col_names, 'type' in col_names)
             if trial is not None:
                 exp.trials.append(trial)
 
 
     #-----------------------------------------------------------------------------
-    def _parse_trial(self, exp, row, xls_line_num, col_names):
+    def _parse_trial(self, exp, row, xls_line_num, data_col_names, type_specified):
 
-        if 'type' in col_names:
+        if type_specified:
             type_name = row.type
         else:
             type_name = tuple(exp.trial_types.keys())[0]
 
-        if _isempty(type_name) or type_name == '':
+        if _isempty(type_name):
             self.logger.error('Error in worksheet "{}", line {}: Trial type was not specified.'
                               .format(expcompiler.xlsreader.XlsReader.ws_trials, xls_line_num), 'TRIALS_NO_TRIAL_TYPE')
             self.errors_found = True
@@ -597,16 +617,29 @@ class Parser(object):
         trial = expcompiler.experiment.Trial(type_name)
         ttype = exp.trial_types[type_name]
 
-        for col in col_names:
+        for col in data_col_names:
 
             if col == 'type':
                 continue
 
-            if col not in ttype.fields:
+            if col.startswith('copy:'):  # todo test
+                copy_name = col[5:]
+                trial.save_values[copy_name] = _nan_to_none(row[col])
                 continue
 
-            value = row[col]
-            if not _isempty(value) and value != '':
+            is_css = col.startswith(_css_prefix)
+            if is_css:
+                field_name = col[len(_css_prefix):]
+            else:
+                field_name = col
+
+            if field_name not in ttype.fields:
+                continue
+
+            if is_css:
+                pass  # todo
+            else:
+                value = row[col]
                 trial.field_values[col] = str(value)
 
         return trial
@@ -622,7 +655,7 @@ class Parser(object):
         Parse a parameter from the general-config worksheet
         The parameter represents a boolean value
         """
-        value = "" if value is None else value.upper()
+        value = "" if value is None else str(value).upper()
 
         if value in ('Y', 'YES', 'T', 'TRUE', '1'):
             return True
@@ -715,7 +748,7 @@ class Parser(object):
 
 
     #-----------------------------------------------------------------------------
-    def _parse_position(self, value, ws_name, col_name, xls_line_num):
+    def _parse_coord(self, value, ws_name, col_name, xls_line_num):
         if value is None:
             self.logger.error('Error in worksheet "{}", column {}, line {}: Empty value is invalid, '.format(ws_name, col_name, xls_line_num) +
                               Parser.valid_position, 'EMPTY_COORD')
@@ -725,11 +758,16 @@ class Parser(object):
         #-- Percentages are handled in excel as numeric values
         # noinspection PyTypeChecker
         if value == 0:
-            return 0
+            return "0px"
 
         elif isinstance(value, Number) and (-1 <= value <= 1):
             # noinspection PyTypeChecker
-            return '{:.2f}%'.format(value*100)
+            if value*100 == int(value*100):
+                # noinspection PyTypeChecker
+                return '{}%'.format(int(value*100))
+            else:
+                # noinspection PyTypeChecker
+                return '{:.2f}%'.format(value*100)
 
         value = str(value)
 
@@ -746,9 +784,9 @@ class Parser(object):
 
 
 #-----------------------------------------------------------------------------
-def _isempty(value):
+def _isempty(value, also_empty_str=True):
     # noinspection PyTypeChecker
-    return value is None or (isinstance(value, Number) and math.isnan(value))
+    return value is None or (isinstance(value, Number) and math.isnan(value)) or (also_empty_str and value == '')
 
 
 def _nan_to_none(value):
