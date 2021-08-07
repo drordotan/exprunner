@@ -211,10 +211,14 @@ class Parser(object):
             ctl = self._parse_layout_control(exp, row, i+2, col_names)
             if ctl is not None:
                 exp.layout[ctl.name] = ctl
+        # todo validate that no duplicate control names (case-insensitive).
 
 
     #-----------------------------------------------------------------------------
     def _parse_layout_control(self, exp, row, xls_line_num, col_names):
+
+        control_name = str(row['name'])
+        # todo validate that control names are valid identifiers
 
         control_type = str(row['type']).lower()
 
@@ -296,6 +300,7 @@ class Parser(object):
 
         for i, row in df.iterrows():
             self._parse_one_response(exp, row, i+2, col_names, response_keys)
+        # todo validate that no duplicate response names (case-insensitive).
 
 
     #-----------------------------------------------------------------------------

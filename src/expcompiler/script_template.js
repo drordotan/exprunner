@@ -18,7 +18,11 @@ ${layout_css}
     let timeline = [];
 
 ${instructions}
+
+    const trial_data = [
 ${trials}
+    ];
+
 ${trial_flow}
 
     timeline.push(trial_procedure);

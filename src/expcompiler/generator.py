@@ -5,8 +5,8 @@ Generate the experiment script
 import os
 import html
 
-import expcompiler
 import expcompiler.experiment as expobj
+from expcompiler.parser import _to_str
 
 
 class ExpGenerator(object):
@@ -27,7 +27,7 @@ class ExpGenerator(object):
         script = script.replace('${title}', self.generate_title_part(exp))
         script = script.replace('${layout_css}', self.generate_layout_css(exp))
         # script = script.replace('${instructions}', self.generate_instructions(exp))
-        # script = script.replace('${trials}', self.generate_trials(exp))
+        script = script.replace('${trials}', self.generate_trials(exp))
         # script = script.replace('${trial_flow}', self.generate_trial_flow(exp))
 
         return script
@@ -59,6 +59,35 @@ class ExpGenerator(object):
             result.append("    {}: {};".format(k, v))
         result.append("}")
         return result
+
+
+    #----------------------------------------------------------------------------
+    def generate_trials(self, exp):
+        lines = [line for trial in exp.trials for line in self.generate_trial(trial, exp)]
+        return "\n".join(lines)
+
+
+    #----------------------------------------------------------------------------
+    def generate_trial(self, trial, exp):
+        result = []
+
+        ttype = exp.trial_types[trial.trial_type]
+        line_prefix = "{ "
+        for ctl_name in sorted(ttype.control_names):
+            line = '{}{}: "<div class='.format(line_prefix, ctl_name) + "'" + ctl_name + "'"
+            if ctl_name in trial.css:
+                for css_attr, value in trial.css[ctl_name].items():
+                    line += " {}='{}'".format(css_attr, _to_str(value))
+            line += '>'
+            if ctl_name in trial.control_values:
+                line += trial.control_values[ctl_name]
+            line += '</div>", '
+            line_prefix = "  "
+            result.append(line)
+
+        result[-1] += " }, "
+
+        return [(" " * 8) + r for r in result]
 
 
     #----------------------------------------------------------------------------

@@ -16,6 +16,8 @@ def compile_exp(src_fn, target_fn, reader=None, logger=None):
     generator = expcompiler.generator.ExpGenerator(logger=logger)
 
     exp = parser.parse()
+    if exp is None:
+        return 2
 
     script = generator.generate(exp)
     if script is None:

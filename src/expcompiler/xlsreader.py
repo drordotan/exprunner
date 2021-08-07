@@ -40,7 +40,6 @@ class XlsReader(object):
 
         wb = openpyxl.open(self._filename, read_only=True)
         self.worksheets = {ws.title for ws in wb.worksheets}
-        wb.close()
 
         expected_ws_names = XlsReader.ws_general, XlsReader.ws_trial_type, XlsReader.ws_layout, XlsReader.ws_response, \
                             XlsReader.ws_trials
@@ -55,6 +54,8 @@ class XlsReader(object):
             if ws.title in expected_ws_names:
                 if self._duplicate_col_names(ws):
                     errors = True
+
+        wb.close()
 
         return not errors
 
@@ -116,7 +117,7 @@ class XlsReader(object):
 
     #--------------------------------------------------
     def _duplicate_col_names(self, sheet):
-        col_titles = np.array([str(c[0].value).lower() for c in list(sheet.columns)])
+        col_titles = np.array([str(sheet.cell(1, c+1).value).lower() for c in range(sheet.max_column)])
         uniq_titles = set(col_titles)
         if len(col_titles) != len(uniq_titles):
             duplicates = [t for t in uniq_titles if sum(col_titles == t) > 1]
