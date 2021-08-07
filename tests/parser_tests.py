@@ -783,6 +783,44 @@ class TrialsTests(unittest.TestCase):
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertTrue('TRIALS_INVALID_SAVE_COL' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
+    #------------------------------------------
+    # CSS formatting
+    #------------------------------------------
+
+    def test_valid_css_formatting(self):
+        parser, exp = test_parse(trial_types=[TType('f1')], layout=[Text('f1', '')],
+                                 trials=[{'format:f1.font-size': '3'}],
+                                 return_exp=True)
+        self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+        self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+        self.assertTrue('f1' in exp.trials[0].css)
+        self.assertTrue('font-size' in exp.trials[0].css['f1'])
+        self.assertEqual('3', exp.trials[0].css['f1']['font-size'])
+
+    def test_css_formatting_for_non_existing_control_is_invalid(self):
+        parser, exp = test_parse(trial_types=[TType('f1')], layout=[Text('f1', '')],
+                                 trials=[{'format:f2.font-size': '3'}],
+                                 return_exp=True)
+        self.assertTrue(parser.errors_found)
+        self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+        self.assertTrue('TRIALS_UNKNOWN_CONTROL' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+
+    def test_css_formatting_for_unused_control_is_invalid(self):
+        parser, exp = test_parse(trial_types=[TType('f1')], layout=[Text('f1', ''), Text('f2', '')],
+                                 trials=[{'format:f2.font-size': '3'}],
+                                 return_exp=True)
+        self.assertTrue(parser.errors_found)
+        self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+        self.assertTrue('TRIALS_CSS_TRIALTYPE_MISMATCH' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+
+    def test_css_empty_formatting_for_unused_control_is_valid(self):
+        parser, exp = test_parse(trial_types=[TType('f1')], layout=[Text('f1', ''), Text('f2', '')],
+                                 trials=[{'format:f2.font-size': ''}],
+                                 return_exp=True)
+        self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+        self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+        self.assertEqual(0, len(exp.trials[0].css))
+
 
 #todo instructions - with trial flow potentially
 

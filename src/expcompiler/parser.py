@@ -661,13 +661,13 @@ class Parser(object):
             fmt_matcher = re.match('format:([^.]+)\\.(.+)', col)
 
             if fmt_matcher is not None:
-                col_name = fmt_matcher.group(1)
+                control_name = fmt_matcher.group(1)
                 css_attr = fmt_matcher.group(2)
-                if col_name in col_names:
-                    formatting_cols.append((col, col_name, css_attr))
+                if control_name in exp.layout:
+                    formatting_cols.append((col, control_name, css_attr))
                 else:
                     self.logger.error('Error in worksheet "{}", column {}: There is no layout item named "{}".'
-                                      .format(expcompiler.xlsreader.XlsReader.ws_trials, col_names[col], col_name),
+                                      .format(expcompiler.xlsreader.XlsReader.ws_trials, col_names[col], control_name),
                                       'TRIALS_UNKNOWN_CONTROL')
                     self.errors_found = True
 
