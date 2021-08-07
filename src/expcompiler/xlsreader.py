@@ -1,5 +1,6 @@
 
 import os
+import numpy as np
 import openpyxl
 import pandas as pd
 import math
@@ -43,14 +44,19 @@ class XlsReader(object):
 
         expected_ws_names = XlsReader.ws_general, XlsReader.ws_trial_type, XlsReader.ws_layout, XlsReader.ws_response, \
                             XlsReader.ws_trials
-        ok = True
+        errors = False
         for wsn in expected_ws_names:
             if wsn not in self.worksheets:
                 self.logger.error("Invalid configuration file {}: Worksheet '{}' is missing".format(os.path.basename(self._filename), wsn),
                                   'MISSING_WORKSHEET_IN_CONFIG')
-                ok = False
+                errors = True
 
-        return ok
+        for ws in wb.worksheets:
+            if ws.title in expected_ws_names:
+                if self._duplicate_col_names(ws):
+                    errors = True
+
+        return not errors
 
 
     #--------------------------------------------------
@@ -106,6 +112,19 @@ class XlsReader(object):
             return None
 
         return self._load_worksheet_as_data_frame(XlsReader.ws_trials)
+
+
+    #--------------------------------------------------
+    def _duplicate_col_names(self, sheet):
+        col_titles = np.array([str(c[0].value).lower() for c in list(sheet.columns)])
+        uniq_titles = set(col_titles)
+        if len(col_titles) != len(uniq_titles):
+            duplicates = [t for t in uniq_titles if sum(col_titles == t) > 1]
+            self.logger.error('Error in worksheet "{}": some columns appear twice ({}).'.format(sheet.title, ",".join(duplicates)),
+                              'DUPLICATE_COL_NAMES')
+            return True
+
+        return False
 
 
 #---------------------------------------------------------------

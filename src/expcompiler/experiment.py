@@ -88,20 +88,20 @@ class TrialType(object):
         self.steps = []
 
     @property
-    def fields(self):
+    def control_names(self):
         result = set()
         for step in self.steps:
-            for fld in step.fields:
-                result.add(fld)
+            for c in step.control_names:
+                result.add(c)
         return result
 
 
 #-----------------------------------------------------------
 class TrialStep(object):
 
-    def __init__(self, num, fields, responses, duration, delay_before, delay_after):
+    def __init__(self, num, control_names, responses, duration, delay_before, delay_after):
         self.num = num
-        self.fields = fields
+        self.control_names = control_names
         self.responses = responses
         self.duration = duration
         self.delay_before = delay_before
@@ -113,5 +113,5 @@ class Trial(object):
 
     def __init__(self, trial_type):
         self.trial_type = trial_type
-        self.field_values = {}
+        self.control_values = {}
         self.save_values = {}
