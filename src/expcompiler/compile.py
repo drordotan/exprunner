@@ -12,6 +12,7 @@ def compile_exp(src_fn, target_fn, reader=None, logger=None):
     :param reader:
     :param logger:
     """
+    logger = logger or expcompiler.logger.Logger()
     parser = expcompiler.parser.Parser(src_fn, reader=reader, logger=logger)
     generator = expcompiler.generator.ExpGenerator(logger=logger)
 
