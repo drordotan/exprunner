@@ -760,7 +760,7 @@ class TrialsTests(unittest.TestCase):
                                  return_exp=True)
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertTrue(parser.warnings_found)
-        self.assertTrue('TRIALS_UNKNOWN_FIELDS' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+        self.assertTrue('TRIALS_INVALID_COL_NAME' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
     #------------------------------------------
     # Custom "save:" columns

@@ -141,3 +141,9 @@ class Trial(object):
         self.trial_type = trial_type
         self.control_values = {}    # Values to assign to each control (e.g., the text for a TextControl). dict key = the control name
         self.save_values = {}       # Values to save to the results file (dict key = output column name)
+        self.css = {}
+
+    def add_css(self, control_name, css_attr, value):
+        if control_name not in self.css:
+            self.css[control_name] = {}
+        self.css[control_name][css_attr] = value

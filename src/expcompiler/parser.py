@@ -10,7 +10,6 @@ import expcompiler
 
 
 _css_prefix = 'format:'
-_control_css_fmt = 'format:([^.]+)\\.(.+)'
 #todo support sounds
 
 
@@ -65,16 +64,13 @@ class Parser(object):
         df = self.reader.general_config()
 
         get_subj_id = self._get_param(df, 'get_subj_id')
-        if get_subj_id is not None:
-            get_subj_id = self._parse_cfg_bool(get_subj_id, 'get_subj_id', False)
+        get_subj_id = self._parse_cfg_bool(get_subj_id, 'get_subj_id', False, allow_none=True)
 
         get_session_id = self._get_param(df, 'get_session_id')
-        if get_session_id is not None:
-            get_session_id = self._parse_cfg_bool(get_session_id, 'get_session_id', False)
+        get_session_id = self._parse_cfg_bool(get_session_id, 'get_session_id', False, allow_none=True)
 
         full_screen = self._get_param(df, 'full_screen')
-        if full_screen is not None:
-            full_screen = self._parse_cfg_bool(full_screen, 'full_screen', False)
+        full_screen = self._parse_cfg_bool(full_screen, 'full_screen', False, allow_none=True)
 
         results_filename = self._get_param(df, 'results_filename')
         if results_filename is not None:
@@ -141,11 +137,14 @@ class Parser(object):
 
 
     #-----------------------------------------------------------------------------
-    def _parse_cfg_bool(self, value, param_name, default_value, allow_empty=False):
+    def _parse_cfg_bool(self, value, param_name, default_value, allow_none=False):
         """
         Parse a parameter from the general-config worksheet
         The parameter represents a boolean value
         """
+        if value is None and allow_none:
+            return default_value
+
         value = "" if value is None else str(value).upper()
 
         if value in ('Y', 'YES', 'T', 'TRUE', '1'):
@@ -153,9 +152,6 @@ class Parser(object):
 
         elif value in ('N', 'NO', 'F', 'FALSE', '0'):
             return False
-
-        elif value == "" and allow_empty:
-            return default_value
 
         else:
             self.logger.error('Error in worksheet "{}": The value of parameter "{}" is "{}"; this is invalid and was ignored. Please specify either "Y" or "N"'.
@@ -631,10 +627,10 @@ class Parser(object):
             self.errors_found = True
             return
 
-        data_col_names = self._check_trials_col_names(col_names, exp)
+        data_col_names, save_col_names, formatting_cols = self._check_trials_col_names(col_names, exp)
 
         for i, row in df.iterrows():
-            trial = self._parse_trial(exp, row, i+2, data_col_names, col_names)
+            trial = self._parse_trial(exp, row, i+2, data_col_names, save_col_names, formatting_cols, col_names)
             if trial is not None:
                 exp.trials.append(trial)
 
@@ -642,10 +638,11 @@ class Parser(object):
     #-----------------------------------------------------------------------------
     def _check_trials_col_names(self, col_names, exp):
 
-        data_col_names = {}
+        save_col_names = []
+        data_col_names = []
+        formatting_cols = []
 
         for col in col_names:
-            ok = False
 
             if col == 'type':
                 continue
@@ -657,27 +654,39 @@ class Parser(object):
                         .format(expcompiler.xlsreader.XlsReader.ws_trials, col), 'TRIALS_INVALID_SAVE_COL')  # todo test
                     self.errors_found = True
                 else:
-                    ok = True
+                    save_col_names.append(col)
 
-            elif col in exp.layout:
-                ok = True
+                continue
+
+            fmt_matcher = re.match('format:([^.]+)\\.(.+)', col)
+
+            if fmt_matcher is not None:
+                col_name = fmt_matcher.group(1)
+                css_attr = fmt_matcher.group(2)
+                if col_name in col_names:
+                    formatting_cols.append((col, col_name, css_attr))
+                else:
+                    self.logger.error('Error in worksheet "{}", column {}: There is no layout item named "{}".'
+                                      .format(expcompiler.xlsreader.XlsReader.ws_trials, col_names[col], col_name),
+                                      'TRIALS_UNKNOWN_CONTROL')
+                    self.errors_found = True
+
+                continue
+
+            if col in exp.layout:
+                data_col_names.append(col)
 
             else:
-                self.logger.error('Error in worksheet "{}": Layout item "{}" is unknown - it was not defined in the "{}" worksheet.'
-                                  .format(expcompiler.xlsreader.XlsReader.ws_trials, col,
-                                          expcompiler.xlsreader.XlsReader.ws_trial_type), 'TRIALS_UNKNOWN_FIELDS')
+                self.logger.error('Error in worksheet "{}", column {}: Column name "{}" is invalid.'
+                                  .format(expcompiler.xlsreader.XlsReader.ws_trials, col_names[col], col),
+                                  'TRIALS_INVALID_COL_NAME')
                 self.warnings_found = True
 
-            # todo support "format:" columns
-
-            if ok:
-                data_col_names[col] = col_names[col]
-
-        return data_col_names
+        return data_col_names, save_col_names, formatting_cols
 
 
     #-----------------------------------------------------------------------------
-    def _parse_trial(self, exp, row, xls_line_num, data_col_names, all_col_names):
+    def _parse_trial(self, exp, row, xls_line_num, data_col_names, save_col_names, formatting_cols, all_col_names):
 
         if 'type' in all_col_names:
             type_name = row.type
@@ -700,30 +709,32 @@ class Parser(object):
         trial = expcompiler.experiment.Trial(type_name)
         ttype = exp.trial_types[type_name]
 
+        #-- Columns indicating the main data of each control (e.g. the text)
         for col in data_col_names:
+            value = row[col]
+            trial.control_values[col] = str(value)
 
-            if col == 'type':
+        #-- Columns indicating values to save as-is
+        for col in save_col_names:
+            saved_col = col[5:]
+            value = _nan_to_none(row[col])
+            if value is not None:
+                trial.save_values[saved_col] = value
+
+        #-- Columns indicating the formatting of various controls
+        #todo save
+        for col_name, control_name, css_attr in formatting_cols:
+            value = _nan_to_none(row[col_name])
+            if value is None:
                 continue
 
-            if col.startswith('save:'):  # todo test
-                saved_col = col[5:]
-                trial.save_values[saved_col] = _nan_to_none(row[col])
-                continue
-
-            is_css = col.startswith(_css_prefix)
-            if is_css:
-                control_name = col[len(_css_prefix):]
+            if control_name in ttype.control_names:
+                trial.add_css(control_name, css_attr, value)
             else:
-                control_name = col
-
-            if control_name not in ttype.control_names:
-                continue
-
-            if is_css:
-                pass  # todo
-            else:
-                value = row[col]
-                trial.control_values[col] = str(value)
+                self.logger.error('Error in worksheet "{}", cell {}{}: Layout item "{}" is inactive for trials of type "{}".'
+                                  .format(expcompiler.xlsreader.XlsReader.ws_trials, all_col_names[col_name], xls_line_num, control_name, ttype.name),
+                                  'TRIALS_CSS_TRIALTYPE_MISMATCH')
+                self.errors_found = True
 
         return trial
 
