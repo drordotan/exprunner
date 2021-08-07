@@ -762,6 +762,27 @@ class TrialsTests(unittest.TestCase):
         self.assertTrue(parser.warnings_found)
         self.assertTrue('TRIALS_UNKNOWN_FIELDS' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
+    #------------------------------------------
+    # Custom "save:" columns
+    #------------------------------------------
+
+    def test_save_values(self):
+        parser, exp = test_parse(trial_types=[TType('f1')], layout=[Text('f1', '')],
+                                 trials=[{'save:a': 'value1'}],
+                                 return_exp=True)
+        self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+        self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+        self.assertTrue('a' in exp.trials[0].save_values)
+        self.assertEqual('value1', exp.trials[0].save_values['a'])
+
+    def test_no_saved_col_name(self):
+        parser, exp = test_parse(trial_types=[TType('f1')], layout=[Text('f1', '')],
+                                 trials=[{'save: ': 'value1'}],
+                                 return_exp=True)
+        self.assertTrue(parser.errors_found)
+        self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+        self.assertTrue('TRIALS_INVALID_SAVE_COL' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+
 
 #todo instructions - with trial flow potentially
 

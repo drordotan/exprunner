@@ -650,12 +650,12 @@ class Parser(object):
             if col == 'type':
                 continue
 
-            if col.lower().startswith('copy:'):
-                if re.match('^copy:\\s*$', col.lower()):
+            if col.lower().startswith('save:'):
+                if re.match('^save:\\s*$', col.lower()):
                     self.logger.error(
-                        'Error in worksheet "{}": A column named "copy:" is invalid, you must write something after the "copy:" (e.g., "copy:xyz" if you want column "xyz" to appear in the output file).'
-                        .format(expcompiler.xlsreader.XlsReader.ws_trials, col), 'TRIALS_INVALID_COPY_COL')  # todo test
-                    self.warnings_found = True
+                        'Error in worksheet "{}": A column named "save:" is invalid, you must write something after the "save:" (e.g., "save:xyz" if you want column "xyz" to appear in the output file).'
+                        .format(expcompiler.xlsreader.XlsReader.ws_trials, col), 'TRIALS_INVALID_SAVE_COL')  # todo test
+                    self.errors_found = True
                 else:
                     ok = True
 
@@ -705,9 +705,9 @@ class Parser(object):
             if col == 'type':
                 continue
 
-            if col.startswith('copy:'):  # todo test
-                copy_name = col[5:]
-                trial.save_values[copy_name] = _nan_to_none(row[col])
+            if col.startswith('save:'):  # todo test
+                saved_col = col[5:]
+                trial.save_values[saved_col] = _nan_to_none(row[col])
                 continue
 
             is_css = col.startswith(_css_prefix)

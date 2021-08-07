@@ -5,22 +5,34 @@ The definitions of an experiment, in internal format
 
 #-----------------------------------------------------------
 class Experiment(object):
+    """
+    A whole definition of an experiment
+    """
 
     def __init__(self, get_subj_id=False, get_session_id=False, results_filename=None, background_color=None, full_screen=None,
                  title=None, instructions=()):
 
-        self.get_subj_id = get_subj_id
-        self.get_session_id = get_session_id
-        self.results_filename = results_filename
-        self.background_color = background_color
-        self.full_screen = full_screen
+        assert isinstance(get_subj_id, bool)
+        assert isinstance(get_session_id, bool)
+        assert isinstance(full_screen, bool)
+        assert results_filename is None or isinstance(results_filename, str)
+        assert background_color is None or isinstance(background_color, str)
+        assert background_color is None or isinstance(background_color, str)
+        assert title is None or isinstance(title, str)
+        assert instructions is None or isinstance(instructions, (list, tuple))
+
+        self.get_subj_id = get_subj_id              # Whether to ask for the subject ID
+        self.get_session_id = get_session_id        # Whether to ask for the session ID
+        self.results_filename = results_filename    # Filename for saving results (None = don't save)
+        self.background_color = background_color    # Background color (using valid HTML/CSS definitions)
+        self.full_screen = full_screen              # Whether app should run in full screen mode
         self.title = title
         self.instructions = () if instructions is None else tuple(instructions)
 
-        self.layout = {}
-        self.trial_types = {}
-        self.responses = {}
-        self.trials = []
+        self.layout = {}        # Layout items (controls), key = name
+        self.trial_types = {}   # key = name, value = TrialType
+        self.responses = {}     # key = name, value = Response
+        self.trials = []        # list of Trial objects
 
 
 #===============================================================================================
@@ -29,9 +41,12 @@ class Experiment(object):
 
 #-----------------------------------------------------------
 class Control(object):
+    """
+    A control (defined as part of the layout)
+    """
 
     def __init__(self, name):
-        self.name = name
+        self.name = name        # name by which this control is referred to
 
 
 #-----------------------------------------------------------
@@ -40,10 +55,10 @@ class TextControl(Control):
     def __init__(self, name, text, x, y, width, css=None):
         super().__init__(name)
         self.text = text
-        self.x = x
-        self.y = y
+        self.x = x              # Position
+        self.y = y              # Position
         self.width = width
-        self.css = css or {}
+        self.css = css or {}    # CSS definitions
 
 
 #===============================================================================================
@@ -55,13 +70,13 @@ class Response(object):
 
     def __init__(self, resp_id, value):
         self.resp_id = resp_id
-        self.value = value
+        self.value = value      # The value associated with this response (saved to results file)
 
 
 #-----------------------------------------------------------
 class ClickButtonResponse(Response):
 
-    def __init__(self, resp_id, value, button_text):  # todo: x,y as generic attrs? hard coded?
+    def __init__(self, resp_id, value, button_text):
         super().__init__(resp_id, value)
         self.button_text = button_text
 
@@ -71,7 +86,7 @@ class KbResponse(Response):
 
     def __init__(self, resp_id, value, key):
         super().__init__(resp_id, value)
-        self.key = key
+        self.key = key          # Keyboard key, using JsPsych key names
 
 
 #===============================================================================================
@@ -80,6 +95,10 @@ class KbResponse(Response):
 
 #-----------------------------------------------------------
 class TrialType(object):
+    """
+    Defines the flow of a trial
+    todo: use this for instructions too?
+    """
 
     default_name = "default"
 
@@ -98,20 +117,27 @@ class TrialType(object):
 
 #-----------------------------------------------------------
 class TrialStep(object):
+    """
+    Defines one step in a trial
+    """
 
     def __init__(self, num, control_names, responses, duration, delay_before, delay_after):
         self.num = num
-        self.control_names = control_names
-        self.responses = responses
-        self.duration = duration
-        self.delay_before = delay_before
-        self.delay_after = delay_after
+        self.control_names = control_names      # Controls presented/active in this step
+        self.responses = responses              # Valid responses in this step.
+        self.duration = duration                # Duration of presenting the control
+        self.delay_before = delay_before        # Delay before this step (in millisec)
+        self.delay_after = delay_after          # Delay after this step (in millisec)
+        #todo RT limit
 
 
 #-----------------------------------------------------------
 class Trial(object):
+    """
+    One trial in the experiment.
+    """
 
     def __init__(self, trial_type):
         self.trial_type = trial_type
-        self.control_values = {}
-        self.save_values = {}
+        self.control_values = {}    # Values to assign to each control (e.g., the text for a TextControl). dict key = the control name
+        self.save_values = {}       # Values to save to the results file (dict key = output column name)
