@@ -116,32 +116,41 @@ class ExpGenerator(object):
     def generate_trial(self, trial, exp):
         result = []
 
-        #todo: change this. There should be one entry per trial step, with several <div>s in it
-
         ttype = exp.trial_types[trial.trial_type]
         line_prefix = "{ "
         for step in ttype.steps:
 
-            line = '{}{}: "'.format(line_prefix, self._step_name(step, ttype))
+            step_line = '{}{}: "'.format(line_prefix, self._step_name(step, ttype))
 
+            #-- Add one <div> for each control
             for ctl_name in sorted(step.control_names):
-                line += '<div class='.format(line_prefix, ctl_name) + "'" + ctl_name + "'"
+
+                #-- <div> definition
+                step_line += '<div class='.format(line_prefix, ctl_name) + "'" + ctl_name + "'"
+
+                #-- Trial-specific formatting
                 if ctl_name in trial.css:
                     for css_attr, value in trial.css[ctl_name].items():
-                        line += " {}='{}'".format(css_attr, _to_str(value))
-                line += '>'
-                if ctl_name in trial.control_values:
-                    line += trial.control_values[ctl_name]
-                line += '</div>'
+                        step_line += " {}='{}'".format(css_attr, _to_str(value))
 
-            line += '",'
-            result.append(line)
+                step_line += '>'
+
+                #-- Value of this control.
+                #todo: Probably this would be needed only for TextControl; TBD later
+                if ctl_name in trial.control_values:
+                    step_line += trial.control_values[ctl_name]
+
+                step_line += '</div>'
+
+            step_line += '",'
+            result.append(step_line)
 
             line_prefix = "  "
 
         result[-1] += " }, "
 
         return [(" " * 8) + r for r in result]
+
 
     #------------------------------------------------------------
     #  Code replacing the ${trial_flow} keyword
