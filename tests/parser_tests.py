@@ -33,7 +33,7 @@ def G(param_name, param_value):
 #-----------------------------------------------------------------------------
 # noinspection PyPep8Naming
 def Text(ctl_name, text='', **kwargs):
-    kwargs['name'] = ctl_name
+    kwargs['layout_name'] = ctl_name
     kwargs['type'] = 'text'
     kwargs['text'] = text
     return kwargs
@@ -41,8 +41,8 @@ def Text(ctl_name, text='', **kwargs):
 
 #-----------------------------------------------------------------------------
 # noinspection PyPep8Naming
-def KbResponse(resp_id, value, key, **kwargs):
-    kwargs['id'] = resp_id
+def KbResponse(name, value, key, **kwargs):
+    kwargs['response_name'] = name
     kwargs['type'] = 'key'
     kwargs['value'] = value
     kwargs['key'] = key
@@ -51,8 +51,8 @@ def KbResponse(resp_id, value, key, **kwargs):
 
 #-----------------------------------------------------------------------------
 # noinspection PyPep8Naming
-def BtnResponse(resp_id, value, text, **kwargs):
-    kwargs['id'] = resp_id
+def BtnResponse(name, value, text, **kwargs):
+    kwargs['response_name'] = name
     kwargs['type'] = 'button'
     kwargs['value'] = value
     kwargs['text'] = text
@@ -350,7 +350,7 @@ class LayoutTests(unittest.TestCase):
     #--------------------------------------------------------
 
     def test_invalid_control_type(self):
-        parser = test_parse(layout=[dict(name='fld', type='magic')])
+        parser = test_parse(layout=[dict(layout_name='fld', type='magic')])
         self.assertTrue(parser.errors_found)
         self.assertTrue('INVALID_CONTROL_TYPE' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
@@ -400,7 +400,7 @@ class ResponsesTests(unittest.TestCase):
         self.assertTrue('MISSING_RESPONSE_VALUE' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
     def test_invalid_response_type(self):
-        parser = test_parse(responses=[dict(id='r1', type='badtype', value=1)])
+        parser = test_parse(responses=[dict(response_name='r1', type='badtype', value=1)])
         self.assertTrue(parser.errors_found)
         self.assertTrue('INVALID_RESPONSE_TYPE' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
@@ -415,7 +415,7 @@ class ResponsesTests(unittest.TestCase):
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
     def test_kbresp_key_missing_col(self):
-        parser = test_parse(responses=[dict(id='r1', type='key', value=1)])
+        parser = test_parse(responses=[dict(response_name='r1', type='key', value=1)])
         self.assertTrue(parser.errors_found)
         self.assertTrue('MISSING_KB_RESPONSE_KEY_COL' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
@@ -454,7 +454,7 @@ class ResponsesTests(unittest.TestCase):
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
     def test_btnresp_text_missing(self):
-        parser = test_parse(responses=[dict(id='r1', type='button', value=1)])
+        parser = test_parse(responses=[dict(response_name='r1', type='button', value=1)])
         self.assertTrue(parser.errors_found)
         self.assertTrue('MISSING_BUTTON_RESPONSE_TEXT_COL' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
@@ -523,6 +523,7 @@ class TrialTypesTests(unittest.TestCase):
         self.assertTrue('TRIAL_TYPE_INVALID_CONTROL_NAMES' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertEqual(0, len(exp.trial_types), "Trial types: {}".format(",".join(exp.trial_types.keys())))
 
+    #todo test duplicate trial type names
 
     #--------------------------------------------------------
     # Responses

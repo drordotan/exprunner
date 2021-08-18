@@ -11,7 +11,12 @@ import expcompiler
 
 
 _css_prefix = 'format:'
+
 #todo support sound controls
+#todo support multiple trial typex
+#todo: "trial types" worksheet is optional. If omitted, all items appear without time limit. If responses are defined, they will be all used. If not, SPACE will advance to the next trial.
+#todo: warn if there are unused columns
+#todo: in "trials", error about columns with invalid names
 
 
 #===============================================================================================================================
@@ -201,7 +206,7 @@ class Parser(object):
 
         col_names = _get_col_names(df)
 
-        for mandatory_col in ('name', 'type'):
+        for mandatory_col in ('layout_name', 'type'):
             ok = True
             if mandatory_col not in col_names:
                 self.logger.error('Error in worksheet "{}": Column "{}" is missing. All layouts were ignored.'
@@ -221,7 +226,7 @@ class Parser(object):
     #-----------------------------------------------------------------------------
     def _parse_layout_control(self, exp, row, xls_line_num, col_names):
 
-        control_name = str(row['name'])
+        control_name = str(row['layout_name'])
         self._validate_control_name(control_name, col_names, xls_line_num)
 
         control_type = str(row['type']).lower()
@@ -238,7 +243,7 @@ class Parser(object):
 
         if control.name.lower() in [k.lower() for k in exp.layout.keys()]:
             self.logger.error('Error in worksheet "{}", cell {}{}: a layout item named "{}" was already defined in a previous line. This line was ignored.'.
-                              format(expcompiler.xlsreader.XlsReader.ws_layout, col_names['name'], xls_line_num, control.name), 'DUPLICATE_CONTROL_NAME')
+                              format(expcompiler.xlsreader.XlsReader.ws_layout, col_names['layout_name'], xls_line_num, control.name), 'DUPLICATE_CONTROL_NAME')
             self.errors_found = True
             return None
 
@@ -251,7 +256,7 @@ class Parser(object):
             return
 
         self.logger.error('Error in worksheet "{}", cell {}{}: layout item name "{}" is invalid - only letters, digits, and _ are allowed in the name.'.
-                          format(expcompiler.xlsreader.XlsReader.ws_layout, col_names['name'], xls_line_num, control_name), 'INVALID_CONTROL_NAME')
+                          format(expcompiler.xlsreader.XlsReader.ws_layout, col_names['layout_name'], xls_line_num, control_name), 'INVALID_CONTROL_NAME')
         self.errors_found = True
 
     #-----------------------------------------------------------------------------
@@ -264,7 +269,7 @@ class Parser(object):
         css = {}
 
         for col_name in row.index:
-            if col_name.lower() in ('name', 'type'):
+            if col_name.lower() in ('layout_name', 'type'):
                 pass
 
             elif col_name.lower() == 'x':
@@ -316,10 +321,11 @@ class Parser(object):
     #-----------------------------------------------------------------------------
     def _parse_one_response(self, exp, row, xls_line_num, col_names, response_keys):
 
-        resp_id = row['id']
+        resp_id = row['response_name']
         if _isempty(resp_id):
-            self.logger.error('Error in worksheet "{}", cell {}{}: response id was not specified, please specify it'.
-                              format(expcompiler.xlsreader.XlsReader.ws_response, col_names['id'], xls_line_num, row.id), 'MISSING_RESPONSE_ID')
+            self.logger.error('Error in worksheet "{}", cell {}{}: response name was not specified, please specify it'.
+                              format(expcompiler.xlsreader.XlsReader.ws_response, col_names['response_name'], xls_line_num, row.response_name),
+                              'MISSING_RESPONSE_ID')
             self.errors_found = True
             resp_id = ''
         else:
@@ -346,8 +352,9 @@ class Parser(object):
             return None
 
         if resp.resp_id.lower() in [r.lower() for r in exp.responses]:
-            self.logger.error('Error in worksheet "{}", cell {}{}: response id="{}" was defined twice, this is invalid'.
-                              format(expcompiler.xlsreader.XlsReader.ws_response, col_names['id'], xls_line_num, row.id), 'DUPLICATE_RESPONSE_ID')
+            self.logger.error('Error in worksheet "{}", cell {}{}: response name="{}" was defined twice, this is invalid'.
+                              format(expcompiler.xlsreader.XlsReader.ws_response, col_names['response_name'], xls_line_num, row.response_name),
+                              'DUPLICATE_RESPONSE_ID')
             self.errors_found = True
             return None
 
@@ -700,10 +707,22 @@ class Parser(object):
                 data_col_names.append(col)
 
             else:
-                self.logger.error('Error in worksheet "{}", column {}: Column name "{}" is invalid.'
-                                  .format(expcompiler.xlsreader.XlsReader.ws_trials, col_names[col], col),
-                                  'TRIALS_INVALID_COL_NAME')
                 self.warnings_found = True
+
+                if col.lower().startswith(_css_prefix):
+                    self.logger.error('Error in worksheet "{}", column {}: Column name "{}" is invalid. To specify the formatting of a layout item,'
+                                      .format(expcompiler.xlsreader.XlsReader.ws_trials, col_names[col], col) +
+                                      ' the column name should be {}:LLL.CCC, where LLL is the layout item name and '.format(_css_prefix) +
+                                      'CCC is the specific formatting (CSS) specifier',
+                                      'TRIALS_INVALID_COL_NAME')
+                else:
+                    self.logger.error('Error in worksheet "{}", column {}: Column name "{}" is invalid. Specify one of the following:\n'
+                                      .format(expcompiler.xlsreader.XlsReader.ws_trials, col_names[col], col) +
+                                      '(1) A layout item name, to specify its value.\n'+
+                                      '(2) {}:LLL.CCC for trial-specific formatting of a layout item, '.format(_css_prefix)+
+                                      'where LLL is the layout item name and CCC is the specific formatting (CSS) specifier.\n' +
+                                      '(3) save:CCC to save a value as-is to the results file (CCC is the column name in the results file)',
+                                      'TRIALS_INVALID_COL_NAME')
 
         return data_col_names, save_col_names, formatting_cols
 
