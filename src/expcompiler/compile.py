@@ -2,6 +2,8 @@
 import expcompiler
 
 
+#todo: "trial types" worksheet is optional. If omitted, all items appear without time limit. If responses are defined, they will be all used. If not, SPACE will advance to the next trial.
+
 #-----------------------------------------------------------------------------
 def compile_exp(src_fn, target_fn, reader=None, logger=None):
     """

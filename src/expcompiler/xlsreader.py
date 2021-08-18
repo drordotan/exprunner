@@ -41,17 +41,18 @@ class XlsReader(object):
         wb = openpyxl.open(self._filename, read_only=True)
         self.worksheets = {ws.title for ws in wb.worksheets}
 
-        expected_ws_names = XlsReader.ws_general, XlsReader.ws_trial_type, XlsReader.ws_layout, XlsReader.ws_response, \
-                            XlsReader.ws_trials
+        all_ws_names = XlsReader.ws_general, XlsReader.ws_trial_type, XlsReader.ws_layout, XlsReader.ws_response, XlsReader.ws_trials
+        mandatory_ws_names = XlsReader.ws_general, XlsReader.ws_layout, XlsReader.ws_trials
+
         errors = False
-        for wsn in expected_ws_names:
+        for wsn in mandatory_ws_names:
             if wsn not in self.worksheets:
                 self.logger.error("Invalid configuration file {}: Worksheet '{}' is missing".format(os.path.basename(self._filename), wsn),
                                   'MISSING_WORKSHEET_IN_CONFIG')
                 errors = True
 
         for ws in wb.worksheets:
-            if ws.title in expected_ws_names:
+            if ws.title in all_ws_names:
                 if self._duplicate_col_names(ws):
                     errors = True
 

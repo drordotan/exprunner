@@ -64,33 +64,24 @@ class Parser(object):
 
         df = self.reader.general_config()
 
-        get_subj_id = self._get_param(df, 'get_subj_id')
-        get_subj_id = self._parse_cfg_bool(get_subj_id, 'get_subj_id', False, allow_none=True)
-
-        get_session_id = self._get_param(df, 'get_session_id')
-        get_session_id = self._parse_cfg_bool(get_session_id, 'get_session_id', False, allow_none=True)
-
-        full_screen = self._get_param(df, 'full_screen')
-        full_screen = self._parse_cfg_bool(full_screen, 'full_screen', False, allow_none=True)
-
-        results_filename = self._get_param(df, 'results_filename')
-        if results_filename is not None:
-            self._validate_results_filename_keywords(results_filename, get_subj_id, get_session_id)
+        get_subj_id = self._get_bool_param(df, 'get_subj_id', False)
+        get_session_id = self._get_bool_param(df, 'get_session_id', False)
+        results_filename_prefix = self._get_param(df, 'results_filename_prefix')
 
         background_color = self._get_param(df, 'background_color')
         if background_color is not None:
             self._validate_color_code(background_color, expcompiler.xlsreader.XlsReader.ws_general, 'parameter "background_color"')
 
-        title = self._get_param(df, 'title', as_str=True) or ''
         instructions = self._get_param_multi_values(df, 'instructions', as_str=True)
         instructions = [i for i in instructions if not _isempty(i)]
 
         exp = expcompiler.experiment.Experiment(get_subj_id=get_subj_id,
                                                 get_session_id=get_session_id,
-                                                results_filename=results_filename,
+                                                save_results=self._get_bool_param(df, 'save_results', False),
+                                                results_filename=self._results_filename(results_filename_prefix, get_subj_id, get_session_id),
                                                 background_color=background_color,
-                                                full_screen=full_screen,
-                                                title=title,
+                                                full_screen=self._get_bool_param(df, 'full_screen', False),
+                                                title=self._get_param(df, 'title', as_str=True) or '',
                                                 instructions=instructions)
         return exp
 
@@ -118,6 +109,12 @@ class Parser(object):
             result = str(result)
 
         return result
+
+
+    #-----------------------------------------------------------------------------
+    def _get_bool_param(self, df, param_name, default_value):
+        val = self._get_param(df, param_name)
+        return self._parse_cfg_bool(val, param_name, default_value, allow_none=True)
 
 
     #-----------------------------------------------------------------------------
@@ -162,32 +159,28 @@ class Parser(object):
 
 
     #-----------------------------------------------------------------------------
-    def _validate_results_filename_keywords(self, filename, subj_id_available, session_id_available):
+    def _results_filename(self, prefix, with_subj_id, with_session_id):
 
-        valid_keywords = 'subj_id', 'session_id', 'date'
+        if prefix is None or prefix == '':
+            prefix = 'results'
 
-        remaining = filename
-        while remaining is not None and remaining != "":
-            m = re.match('^[^$]*\\${([^}]*)}(.*)$', remaining)
-            if m is None:
-                return
-            keyword = m.group(1)
-            if keyword == 'subj_id' and not subj_id_available:
-                self.logger.error('Error in worksheet "{}": invalid value for the "results_filename" parameter - the keyword "{}" cannot be used because you did not ask to obtain the subject ID'
-                                  .format(expcompiler.xlsreader.XlsReader.ws_general, keyword), 'INVALID_FILENAME(SUBJ_ID)')
-                self.errors_found = True
+        elif re.match('^[a-zA-Z_&$#-]+$', prefix) is None:
+            self.logger.error('Error in worksheet "{}": Invalid "results_filename_prefix" ({})'.
+                              format(expcompiler.xlsreader.XlsReader.ws_general, prefix) +
+                              ' - it can contain only letters, digits, or the characters -,_,&,#,$',
+                              'INVALID_FILENAME_PREFIX')
+            self.errors_found = True
+            prefix = 'results'
 
-            elif keyword == 'session_id' and not session_id_available:
-                self.logger.error('Error in worksheet "{}": invalid value for the "results_filename" parameter - the keyword "{}" cannot be used because you did not ask to obtain a session ID'
-                                  .format(expcompiler.xlsreader.XlsReader.ws_general, keyword), 'INVALID_FILENAME(SESSION_ID)')
-                self.errors_found = True
+        fn = prefix
 
-            elif keyword not in valid_keywords:
-                self.logger.error('Error in worksheet "{}": invalid value for the "results_filename" parameter - the keyword "{}" is unknown'
-                                  .format(expcompiler.xlsreader.XlsReader.ws_general, keyword), 'INVALID_FILENAME(UNKNOWN_KEYWORD)')
-                self.errors_found = True
+        if with_subj_id:
+            fn += '_${subj_id}'
 
-            remaining = m.group(2)
+        if with_session_id:
+            fn += '_${session_id}'
+
+        return fn + "_${date}.csv"
 
 
     #=========================================================================================
@@ -207,23 +200,34 @@ class Parser(object):
             return
 
         col_names = _get_col_names(df)
+
+        for mandatory_col in ('name', 'type'):
+            ok = True
+            if mandatory_col not in col_names:
+                self.logger.error('Error in worksheet "{}": Column "{}" is missing. All layouts were ignored.'
+                                  .format(expcompiler.xlsreader.XlsReader.ws_layout, mandatory_col),
+                                  'MISSING_COL')
+                self.errors_found = True
+                ok = False
+            if not ok:
+                return
+
         for i, row in df.iterrows():
             ctl = self._parse_layout_control(exp, row, i+2, col_names)
             if ctl is not None:
                 exp.layout[ctl.name] = ctl
-        # todo validate that no duplicate control names (case-insensitive).
 
 
     #-----------------------------------------------------------------------------
     def _parse_layout_control(self, exp, row, xls_line_num, col_names):
 
         control_name = str(row['name'])
-        # todo validate that control names are valid identifiers
+        self._validate_control_name(control_name, col_names, xls_line_num)
 
         control_type = str(row['type']).lower()
 
         if control_type == 'text':
-            control = self._parse_text_control(row, xls_line_num, col_names)
+            control = self._parse_text_control(control_name, row, xls_line_num, col_names)
 
         else:
             self.logger.error('Error in worksheet "{}", cell {}{}: type="{}" is unknown, only "text" is supported'.
@@ -232,7 +236,7 @@ class Parser(object):
             self.errors_found = True
             return None
 
-        if control.name in exp.layout:
+        if control.name.lower() in [k.lower() for k in exp.layout.keys()]:
             self.logger.error('Error in worksheet "{}", cell {}{}: a layout item named "{}" was already defined in a previous line. This line was ignored.'.
                               format(expcompiler.xlsreader.XlsReader.ws_layout, col_names['name'], xls_line_num, control.name), 'DUPLICATE_CONTROL_NAME')
             self.errors_found = True
@@ -242,7 +246,16 @@ class Parser(object):
 
 
     #-----------------------------------------------------------------------------
-    def _parse_text_control(self, row, xls_line_num, col_names):
+    def _validate_control_name(self, control_name, col_names, xls_line_num):
+        if re.match('^[a-zA-Z0-9_]+$', control_name) is not None:
+            return
+
+        self.logger.error('Error in worksheet "{}", cell {}{}: layout item name "{}" is invalid - only letters, digits, and _ are allowed in the name.'.
+                          format(expcompiler.xlsreader.XlsReader.ws_layout, col_names['name'], xls_line_num, control_name), 'INVALID_CONTROL_NAME')
+        self.errors_found = True
+
+    #-----------------------------------------------------------------------------
+    def _parse_text_control(self, control_name, row, xls_line_num, col_names):
 
         text = ""
         x = 0
@@ -277,8 +290,6 @@ class Parser(object):
                                   format(expcompiler.xlsreader.XlsReader.ws_layout, col_names[col_name], col_name), 'EXCESSIVE_COLUMN')
                 self.warnings_found = True
 
-        control_name = str(row['name'])
-
         return expcompiler.experiment.TextControl(control_name, text, x, y, width, css)
 
 
@@ -300,7 +311,6 @@ class Parser(object):
 
         for i, row in df.iterrows():
             self._parse_one_response(exp, row, i+2, col_names, response_keys)
-        # todo validate that no duplicate response names (case-insensitive).
 
 
     #-----------------------------------------------------------------------------
@@ -311,7 +321,7 @@ class Parser(object):
             self.logger.error('Error in worksheet "{}", cell {}{}: response id was not specified, please specify it'.
                               format(expcompiler.xlsreader.XlsReader.ws_response, col_names['id'], xls_line_num, row.id), 'MISSING_RESPONSE_ID')
             self.errors_found = True
-            resp_id = None
+            resp_id = ''
         else:
             resp_id = str(resp_id).lower()
 
@@ -335,7 +345,7 @@ class Parser(object):
             self.errors_found = True
             return None
 
-        if resp.resp_id in exp.responses:
+        if resp.resp_id.lower() in [r.lower() for r in exp.responses]:
             self.logger.error('Error in worksheet "{}", cell {}{}: response id="{}" was defined twice, this is invalid'.
                               format(expcompiler.xlsreader.XlsReader.ws_response, col_names['id'], xls_line_num, row.id), 'DUPLICATE_RESPONSE_ID')
             self.errors_found = True
@@ -443,6 +453,13 @@ class Parser(object):
                                                   xls_line_num, mandatory=False, default_value=0, zero_allowed=True)
         delay_after = self._parse_positive_float(row, 'delay-after', col_names,  expcompiler.xlsreader.XlsReader.ws_trial_type,
                                                  xls_line_num, mandatory=False, default_value=0, zero_allowed=True)
+
+        responses_defined = response_names is not None and len(response_names) > 0
+        if not responses_defined and duration is None:
+            self.logger.error('Error in worksheet "{}", line {}: An unlimited-time step without response is invalid. Either "duration" or "responses" must be defined.'
+                              .format(expcompiler.xlsreader.XlsReader.ws_trial_type, xls_line_num),
+                              'MUST_DEFINE_RESPONSE_OR_DURATION')
+            self.errors_found = True
 
         if type_name is None or control_names is None:
             step = None

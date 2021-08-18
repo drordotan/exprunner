@@ -61,8 +61,11 @@ def BtnResponse(resp_id, value, text, **kwargs):
 
 #-----------------------------------------------------------------------------
 # noinspection PyPep8Naming
-def TType(fields, **kwargs):
+def TType(fields, duration=1, **kwargs):
     kwargs['layout items'] = fields
+
+    if duration is not None:
+        kwargs['duration'] = duration
 
     if 'delay_before' in kwargs:
         kwargs['delay-before'] = kwargs['delay_before']
@@ -90,27 +93,27 @@ class GeneralWsTests(unittest.TestCase):
     # Specify subj ID
     #--------------------------------------------------------
 
-    def test_specify_results_filename_subj_id_y(self):
+    def test_subj_id_y(self):
         parser = test_parse(general=[G('get_subj_id', 'Y')])
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
-    def test_specify_results_filename_subj_id_n(self):
+    def test_subj_id_n(self):
         parser = test_parse(general=[G('get_subj_id', 'Y')])
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
-    def test_specify_results_filename_subj_id_none(self):
+    def test_subj_id_none(self):
         parser = test_parse(general=[G('get_subj_id', None)])
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
-    def test_specify_results_filename_subj_id_empty(self):
+    def test_subj_id_empty(self):
         parser = test_parse(general=[G('get_subj_id', '')])
         self.assertTrue(parser.errors_found)
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
-    def test_specify_results_filename_subj_id_invalid(self):
+    def test_subj_id_invalid(self):
         parser = test_parse(general=[G('get_subj_id', 'xyz')])
         self.assertTrue(parser.errors_found)
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
@@ -120,26 +123,26 @@ class GeneralWsTests(unittest.TestCase):
     # Specify session ID
     #--------------------------------------------------------
 
-    def test_specify_results_filename_session_id_y(self):
+    def test_session_id_y(self):
         parser = test_parse(general=[G('get_session_id', 'Y')])
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
-    def test_specify_results_filename_session_id_n(self):
+    def test_session_id_n(self):
         parser = test_parse(general=[G('get_session_id', 'Y')])
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
-    def test_specify_results_filename_session_id_none(self):
+    def test_session_id_none(self):
         parser = test_parse(general=[G('get_session_id', None)])
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
-    def test_specify_results_filename_session_id_empty(self):
+    def test_session_id_empty(self):
         parser = test_parse(general=[G('get_session_id', '')])
         self.assertTrue(parser.errors_found)
 
-    def test_specify_results_filename_session_id_invalid(self):
+    def test_session_id_invalid(self):
         parser = test_parse(general=[G('get_session_id', 'xyz')])
         self.assertTrue(parser.errors_found)
 
@@ -148,40 +151,36 @@ class GeneralWsTests(unittest.TestCase):
     # Specify results filename
     #--------------------------------------------------------
 
-    def test_specify_results_filename_without_keywords(self):
-        parser = test_parse(general=[G('results_filename', 'stam.pdf')])
+    def test_specify_results_filename_default(self):
+        parser, exp = test_parse(general=[], return_exp=True)
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+        self.assertEqual('results_${date}.csv', exp.results_filename)
 
-    def test_specify_results_filename_with_date(self):
-        parser = test_parse(general=[G('results_filename', 'a${date}.pdf')])
+    def test_specify_results_filename_without_details(self):
+        parser, exp = test_parse(general=[G('results_filename_prefix', 'stam')], return_exp=True)
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+        self.assertEqual('stam_${date}.csv', exp.results_filename)
 
-    def test_specify_results_filename_with_valid_subj_id(self):
-        parser = test_parse(general=[G('results_filename', 'a${subj_id}.pdf'), G('get_subj_id', 'Y')])
+    def test_specify_results_filename_with_subj(self):
+        parser, exp = test_parse(general=[G('results_filename_prefix', 'stam'), G('get_subj_id', 'Y')], return_exp=True)
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+        self.assertEqual('stam_${subj_id}_${date}.csv', exp.results_filename)
 
-    def test_specify_results_filename_with_invalid_subj_id(self):
-        parser = test_parse(general=[G('results_filename', 'a${subj_id}.pdf')])
+    def test_specify_results_filename_with_session(self):
+        parser, exp = test_parse(general=[G('results_filename_prefix', 'stam'), G('get_session_id', 'Y')], return_exp=True)
+        self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+        self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+        self.assertEqual('stam_${session_id}_${date}.csv', exp.results_filename)
+
+    def test_specify_results_filename_invalid_prefix(self):
+        parser, exp = test_parse(general=[G('results_filename_prefix', '%')], return_exp=True)
         self.assertTrue(parser.errors_found)
-        self.assertTrue('INVALID_FILENAME(SUBJ_ID)' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
-
-    def test_specify_results_filename_with_valid_session_id(self):
-        parser = test_parse(general=[G('results_filename', 'a${session_id}.pdf'), G('get_session_id', 'Y')])
-        self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+        self.assertTrue('INVALID_FILENAME_PREFIX' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
-    def test_specify_results_filename_with_invalid_session_id(self):
-        parser = test_parse(general=[G('results_filename', 'a${session_id}.pdf')])
-        self.assertTrue(parser.errors_found)
-        self.assertTrue('INVALID_FILENAME(SESSION_ID)' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
-
-    def test_specify_results_filename_with_invalid_keyword(self):
-        parser = test_parse(general=[G('results_filename', 'a${stam}.pdf')])
-        self.assertTrue(parser.errors_found)
-        self.assertTrue('INVALID_FILENAME(UNKNOWN_KEYWORD)' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
     #--------------------------------------------------------
     # Specify background color
@@ -351,12 +350,22 @@ class LayoutTests(unittest.TestCase):
     #--------------------------------------------------------
 
     def test_invalid_control_type(self):
-        parser = test_parse(layout=[dict(field_name='fld', type='magic')])
+        parser = test_parse(layout=[dict(name='fld', type='magic')])
         self.assertTrue(parser.errors_found)
         self.assertTrue('INVALID_CONTROL_TYPE' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
+    def test_invalid_control_name(self):
+        parser = test_parse(layout=[Text('%')])
+        self.assertTrue(parser.errors_found)
+        self.assertTrue('INVALID_CONTROL_NAME' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+
     def test_duplicate_field_names_are_invalid(self):
         parser = test_parse(layout=[Text('field1'), Text('field2'), Text('field1')])
+        self.assertTrue(parser.errors_found)
+        self.assertTrue('DUPLICATE_CONTROL_NAME' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+
+    def test_duplicate_field_names_are_invalid_case_insensitive(self):
+        parser = test_parse(layout=[Text('field1'), Text('field2'), Text('FIEld1')])
         self.assertTrue(parser.errors_found)
         self.assertTrue('DUPLICATE_CONTROL_NAME' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
@@ -427,6 +436,11 @@ class ResponsesTests(unittest.TestCase):
 
     def test_kbresp_duplicate_response_ids_are_invalid(self):
         parser = test_parse(responses=[KbResponse('r1', 1, '/'), KbResponse('r1', 2, '.')])
+        self.assertTrue(parser.errors_found)
+        self.assertTrue('DUPLICATE_RESPONSE_ID' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+
+    def test_kbresp_duplicate_response_ids_are_invalid_case_insensitive(self):
+        parser = test_parse(responses=[KbResponse('r1', 1, '/'), KbResponse('R1', 2, '.')])
         self.assertTrue(parser.errors_found)
         self.assertTrue('DUPLICATE_RESPONSE_ID' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
@@ -578,7 +592,7 @@ class TrialTypesTests(unittest.TestCase):
     #--------------------------------------------------------
 
     def test_no_duration(self):
-        parser = test_parse(trial_types=[TType('a', type='t')], layout=[Text('a', '')])
+        parser = test_parse(trial_types=[TType('a', duration=None, type='t', responses='1')], layout=[Text('a', '')], responses=[KbResponse(1, 1, 'z')])
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
@@ -604,16 +618,28 @@ class TrialTypesTests(unittest.TestCase):
         self.assertTrue('NON_NUMERIC_VALUE' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
     def test_empty_duration_is_valid(self):
-        parser, exp = test_parse(trial_types=[TType('a', type='t', duration='')], layout=[Text('a', '')], return_exp=True)
+        parser, exp = test_parse(trial_types=[TType('a', type='t', duration='', responses='1')],
+                                 layout=[Text('a', '')],
+                                 responses=[KbResponse(1, 1, 'z')],
+                                 return_exp=True)
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertIsNone(exp.trial_types['t'].steps[0].duration)
 
     def test_duration_none_is_valid(self):
-        parser, exp = test_parse(trial_types=[TType('a', type='t', duration=None)], layout=[Text('a', '')], return_exp=True)
+        parser, exp = test_parse(trial_types=[TType('a', type='t', duration=None, responses='1')],
+                                 layout=[Text('a', '')],
+                                 responses=[KbResponse(1, 1, 'z')],
+                                 return_exp=True)
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertIsNone(exp.trial_types['t'].steps[0].duration)
+
+    def test_must_define_either_duration_or_response(self):
+        parser = test_parse(trial_types=[TType('a', duration=None, type='t')], layout=[Text('a', '')])
+        self.assertTrue(parser.errors_found)
+        self.assertTrue('MUST_DEFINE_RESPONSE_OR_DURATION' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+
 
     #--------------------------------------------------------
     # Delay before/after trial
