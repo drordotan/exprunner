@@ -8,9 +8,9 @@ class ReaderForTests(object):
 
     def __init__(self, general=None, layout=None, trial_types=None, respones=None, trials=None):
         self._general = _to_df(general, ['param', 'value'])
-        self._layout = _to_df(layout, ['field_name', 'type', 'text'])
-        self._trial_types = _to_df(trial_types, ['fields'])
-        self._respones = _to_df(respones, ['id', 'type', 'value'])
+        self._layout = _to_df(layout, ['layout_name', 'type', 'text'])
+        self._trial_types = _to_df(trial_types, ['layout items'])
+        self._respones = _to_df(respones, ['response_name', 'type', 'value'])
         self._trials = _to_df(trials, [])
 
 

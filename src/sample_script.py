@@ -5,3 +5,4 @@ rc = expcompiler.compile.compile_exp('/Users/dror/data/projects/simple-experimen
                                 '/Users/dror/temp/test.html')
 
 sys.exit(rc)
+field_

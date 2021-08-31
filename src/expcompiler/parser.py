@@ -236,7 +236,7 @@ class Parser(object):
 
         else:
             self.logger.error('Error in worksheet "{}", cell {}{}: type="{}" is unknown, only "text" is supported'.
-                              format(expcompiler.xlsreader.XlsReader.ws_layout, col_names['type'], xls_line_num, row.type),
+                              format(expcompiler.xlsreader.XlsReader.ws_layout, col_names['type'], xls_line_num, row.type_name),
                               'INVALID_CONTROL_TYPE')
             self.errors_found = True
             return None
@@ -269,7 +269,7 @@ class Parser(object):
         css = {}
 
         for col_name in row.index:
-            if col_name.lower() in ('layout_name', 'type'):
+            if col_name.lower() in ('layout_name', 'type', 'explanation'):
                 pass
 
             elif col_name.lower() == 'x':
@@ -479,10 +479,10 @@ class Parser(object):
     #-----------------------------------------------------------------------------
     def _parse_trial_type(self, row, last_type_name, xls_line_num, col_names):
 
-        if 'type' not in col_names:
+        if 'type_name' not in col_names:
             return expcompiler.experiment.TrialType.default_name
 
-        type_name = row.type
+        type_name = row.type_name
         if _isempty(type_name):
             if last_type_name is None:
                 type_name = expcompiler.experiment.TrialType.default_name
@@ -493,8 +493,8 @@ class Parser(object):
             else:
                 type_name = last_type_name
                 self.logger.error(
-                    'Warning in worksheet "{}", cell {}{}: "type" was not specified. Assuming this step belongs to the last specified trial type ({}).'
-                    .format(expcompiler.xlsreader.XlsReader.ws_trial_type, col_names['type'], xls_line_num, type_name), 'TRIAL_TYPE_MISSING')
+                    'Warning in worksheet "{}", cell {}{}: "type_name" was not specified. Assuming this step belongs to the last specified trial type ({}).'
+                    .format(expcompiler.xlsreader.XlsReader.ws_trial_type, col_names['type_name'], xls_line_num, type_name), 'TRIAL_TYPE_MISSING')
                 self.warnings_found = True
 
         else:

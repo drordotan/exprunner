@@ -89,7 +89,7 @@ class XlsReader(object):
         if XlsReader.ws_layout not in self.worksheets:
             return None
 
-        return self._load_worksheet_as_data_frame(XlsReader.ws_layout, ('field_name', 'type'))
+        return self._load_worksheet_as_data_frame(XlsReader.ws_layout, ('layout_name', 'type'))
 
 
     #--------------------------------------------------
@@ -97,7 +97,7 @@ class XlsReader(object):
         if XlsReader.ws_trial_type not in self.worksheets:
             return None
 
-        return self._load_worksheet_as_data_frame(XlsReader.ws_trial_type, ('fields', ))
+        return self._load_worksheet_as_data_frame(XlsReader.ws_trial_type, ('layout items', ))
 
 
     #--------------------------------------------------
@@ -105,7 +105,7 @@ class XlsReader(object):
         if XlsReader.ws_response not in self.worksheets:
             return None
 
-        return self._load_worksheet_as_data_frame(XlsReader.ws_response, ('id', 'type', 'value'))
+        return self._load_worksheet_as_data_frame(XlsReader.ws_response, ('response_name', 'type', 'value'))
 
 
     #--------------------------------------------------
