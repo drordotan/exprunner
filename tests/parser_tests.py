@@ -471,7 +471,7 @@ class TrialTypesTests(unittest.TestCase):
     #--------------------------------------------------------
 
     def test_invalid_type_name(self):
-        parser = test_parse(trial_types=[TType('f1,f2', type='type')])
+        parser = test_parse(trial_types=[TType('f1,f2', type_name='type')])
         self.assertTrue(parser.errors_found)
         self.assertTrue('TRIAL_TYPE_INVALID_TYPE_NAME' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
@@ -480,7 +480,7 @@ class TrialTypesTests(unittest.TestCase):
     #--------------------------------------------------------
 
     def test_valid_fields(self):
-        parser, exp = test_parse(trial_types=[TType('a, b', type='t')], layout=[Text('a', 'text1'), Text('b', 'text2')], return_exp=True)
+        parser, exp = test_parse(trial_types=[TType('a, b', type_name='t')], layout=[Text('a', 'text1'), Text('b', 'text2')], return_exp=True)
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         fields = exp.trial_types['t'].control_names
@@ -488,28 +488,28 @@ class TrialTypesTests(unittest.TestCase):
         self.assertTrue('b' in fields, 'Field names: ' + ",".join(fields))
 
     def test_valid_fields_with_numeric_name(self):
-        parser = test_parse(trial_types=[TType('1, 2', type='t')], layout=[Text(1, 'text1'), Text(2, 'text2')])
+        parser = test_parse(trial_types=[TType('1, 2', type_name='t')], layout=[Text(1, 'text1'), Text(2, 'text2')])
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
     def test_fields_empty(self):
-        parser = test_parse(trial_types=[TType('', type='t')])
+        parser = test_parse(trial_types=[TType('', type_name='t')])
         self.assertTrue(parser.errors_found)
         self.assertTrue('TRIAL_TYPE_NO_FIELDS' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
     def test_fields_none(self):
-        parser = test_parse(trial_types=[TType(None, type='t')])
+        parser = test_parse(trial_types=[TType(None, type_name='t')])
         self.assertTrue(parser.errors_found)
         self.assertTrue('TRIAL_TYPE_NO_FIELDS' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
     def test_duplicate_field_names(self):
-        parser = test_parse(trial_types=[TType('a,a', type='t')], layout=[Text('a', 'text1')])
+        parser = test_parse(trial_types=[TType('a,a', type_name='t')], layout=[Text('a', 'text1')])
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertTrue(parser.warnings_found)
         self.assertTrue('TRIAL_TYPE_DUPLICATE_CONTROLS' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
     def test_some_field_names_invalid(self):
-        parser, exp = test_parse(trial_types=[TType('a,b', type='t')], layout=[Text('b', 'text2')], return_exp=True)
+        parser, exp = test_parse(trial_types=[TType('a,b', type_name='t')], layout=[Text('b', 'text2')], return_exp=True)
         self.assertTrue(parser.errors_found)
         self.assertTrue('TRIAL_TYPE_INVALID_CONTROL_NAMES' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         if 't' in exp.trial_types:
@@ -518,7 +518,7 @@ class TrialTypesTests(unittest.TestCase):
             self.fail("Trial types: {}".format(",".join(exp.trial_types.keys())))
 
     def test_all_field_names_invalid(self):
-        parser, exp = test_parse(trial_types=[TType('a', type='t')], layout=[Text('b', 'text2')], return_exp=True)
+        parser, exp = test_parse(trial_types=[TType('a', type_name='t')], layout=[Text('b', 'text2')], return_exp=True)
         self.assertTrue(parser.errors_found)
         self.assertTrue('TRIAL_TYPE_INVALID_CONTROL_NAMES' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertEqual(0, len(exp.trial_types), "Trial types: {}".format(",".join(exp.trial_types.keys())))
@@ -530,43 +530,43 @@ class TrialTypesTests(unittest.TestCase):
     #--------------------------------------------------------
 
     def test_no_responses(self):
-        parser = test_parse(trial_types=[TType('a', type='t')], layout=[Text('a', '')])
+        parser = test_parse(trial_types=[TType('a', type_name='t')], layout=[Text('a', '')])
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
     def test_valid_responses(self):
-        parser = test_parse(trial_types=[TType('a', type='t', responses='r1,r2')], layout=[Text('a', '')],
+        parser = test_parse(trial_types=[TType('a', type_name='t', responses='r1,r2')], layout=[Text('a', '')],
                             responses=[KbResponse('r1', 1, 'a'), KbResponse('r2', 2, 'b')])
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
     def test_valid_responses_numeric_id(self):
-        parser = test_parse(trial_types=[TType('a', type='t', responses='1,2')], layout=[Text('a', '')],
+        parser = test_parse(trial_types=[TType('a', type_name='t', responses='1,2')], layout=[Text('a', '')],
                             responses=[KbResponse(1, 1, 'a'), KbResponse(2, 2, 'b')])
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
     def test_responses_empty(self):
-        parser = test_parse(trial_types=[TType('a', type='t', responses='')], layout=[Text('a', '')],
+        parser = test_parse(trial_types=[TType('a', type_name='t', responses='')], layout=[Text('a', '')],
                             responses=[KbResponse('r1', 1, 'a'), KbResponse('r2', 2, 'b')])
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
     def test_responses_none(self):
-        parser = test_parse(trial_types=[TType('a', type='t', responses=None)], layout=[Text('a', '')],
+        parser = test_parse(trial_types=[TType('a', type_name='t', responses=None)], layout=[Text('a', '')],
                             responses=[KbResponse('r1', 1, 'a'), KbResponse('r2', 2, 'b')])
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
     def test_duplicate_responses(self):
-        parser = test_parse(trial_types=[TType('a', type='t', responses='r1,r2,r1')], layout=[Text('a', '')],
+        parser = test_parse(trial_types=[TType('a', type_name='t', responses='r1,r2,r1')], layout=[Text('a', '')],
                             responses=[KbResponse('r1', 1, 'a'), KbResponse('r2', 2, 'b')])
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertTrue(parser.warnings_found)
         self.assertTrue('TRIAL_TYPE_DUPLICATE_RESPONSES' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
     def test_some_unknown_responses(self):
-        parser, exp = test_parse(trial_types=[TType('a', type='t', responses='r3,r2')], layout=[Text('a', '')],
+        parser, exp = test_parse(trial_types=[TType('a', type_name='t', responses='r3,r2')], layout=[Text('a', '')],
                                  responses=[KbResponse('r1', 1, 'a'), KbResponse('r2', 2, 'b')], return_exp=True)
         self.assertTrue(parser.errors_found)
         self.assertTrue('TRIAL_TYPE_INVALID_RESPONSE_NAMES' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
@@ -574,14 +574,14 @@ class TrialTypesTests(unittest.TestCase):
         self.assertEqual(1, len(exp.trial_types['t'].steps))
 
     def test_all_unknown_responses(self):
-        parser, exp = test_parse(trial_types=[TType('a', type='t', responses='r3')], layout=[Text('a', '')], responses=[], return_exp=True)
+        parser, exp = test_parse(trial_types=[TType('a', type_name='t', responses='r3')], layout=[Text('a', '')], responses=[], return_exp=True)
         self.assertTrue(parser.errors_found)
         self.assertTrue('TRIAL_TYPE_INVALID_RESPONSE_NAMES' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertEqual(1, len(exp.trial_types))
         self.assertEqual(1, len(exp.trial_types['t'].steps))
 
     def test_multi_type_responses(self):
-        parser = test_parse(trial_types=[TType('a', type='t', responses='1,2')], layout=[Text('a', '')],
+        parser = test_parse(trial_types=[TType('a', type_name='t', responses='1,2')], layout=[Text('a', '')],
                             responses=[KbResponse(1, 1, 'z'), BtnResponse(2, 2, '')])
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertTrue(parser.warnings_found)
@@ -593,33 +593,33 @@ class TrialTypesTests(unittest.TestCase):
     #--------------------------------------------------------
 
     def test_no_duration(self):
-        parser = test_parse(trial_types=[TType('a', duration=None, type='t', responses='1')], layout=[Text('a', '')], responses=[KbResponse(1, 1, 'z')])
+        parser = test_parse(trial_types=[TType('a', duration=None, type_name='t', responses='1')], layout=[Text('a', '')], responses=[KbResponse(1, 1, 'z')])
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
     def test_valid_duration(self):
-        parser, exp = test_parse(trial_types=[TType('a', type='t', duration='1.5')], layout=[Text('a', '')], return_exp=True)
+        parser, exp = test_parse(trial_types=[TType('a', type_name='t', duration='1.5')], layout=[Text('a', '')], return_exp=True)
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertEqual(1.5, exp.trial_types['t'].steps[0].duration)
 
     def test_duration_0_is_invalid(self):
-        parser = test_parse(trial_types=[TType('a', type='t', duration='0')], layout=[Text('a', '')])
+        parser = test_parse(trial_types=[TType('a', type_name='t', duration='0')], layout=[Text('a', '')])
         self.assertTrue(parser.errors_found)
         self.assertTrue('INVALID_NUMERIC_VALUE' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
     def test_negative_duration_is_invalid(self):
-        parser = test_parse(trial_types=[TType('a', type='t', duration=-5)], layout=[Text('a', '')])
+        parser = test_parse(trial_types=[TType('a', type_name='t', duration=-5)], layout=[Text('a', '')])
         self.assertTrue(parser.errors_found)
         self.assertTrue('INVALID_NUMERIC_VALUE' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
     def test_string_duration_is_invalid(self):
-        parser = test_parse(trial_types=[TType('a', type='t', duration='hi')], layout=[Text('a', '')])
+        parser = test_parse(trial_types=[TType('a', type_name='t', duration='hi')], layout=[Text('a', '')])
         self.assertTrue(parser.errors_found)
         self.assertTrue('NON_NUMERIC_VALUE' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
     def test_empty_duration_is_valid(self):
-        parser, exp = test_parse(trial_types=[TType('a', type='t', duration='', responses='1')],
+        parser, exp = test_parse(trial_types=[TType('a', type_name='t', duration='', responses='1')],
                                  layout=[Text('a', '')],
                                  responses=[KbResponse(1, 1, 'z')],
                                  return_exp=True)
@@ -628,7 +628,7 @@ class TrialTypesTests(unittest.TestCase):
         self.assertIsNone(exp.trial_types['t'].steps[0].duration)
 
     def test_duration_none_is_valid(self):
-        parser, exp = test_parse(trial_types=[TType('a', type='t', duration=None, responses='1')],
+        parser, exp = test_parse(trial_types=[TType('a', type_name='t', duration=None, responses='1')],
                                  layout=[Text('a', '')],
                                  responses=[KbResponse(1, 1, 'z')],
                                  return_exp=True)
@@ -637,7 +637,7 @@ class TrialTypesTests(unittest.TestCase):
         self.assertIsNone(exp.trial_types['t'].steps[0].duration)
 
     def test_must_define_either_duration_or_response(self):
-        parser = test_parse(trial_types=[TType('a', duration=None, type='t')], layout=[Text('a', '')])
+        parser = test_parse(trial_types=[TType('a', duration=None, type_name='t')], layout=[Text('a', '')])
         self.assertTrue(parser.errors_found)
         self.assertTrue('MUST_DEFINE_RESPONSE_OR_DURATION' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
@@ -647,70 +647,70 @@ class TrialTypesTests(unittest.TestCase):
     #--------------------------------------------------------
 
     def test_valid_delay_before(self):
-        parser, exp = test_parse(trial_types=[TType('a', type='t', delay_before='1.5')], layout=[Text('a', '')], return_exp=True)
+        parser, exp = test_parse(trial_types=[TType('a', type_name='t', delay_before='1.5')], layout=[Text('a', '')], return_exp=True)
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertEqual(1.5, exp.trial_types['t'].steps[0].delay_before)
 
     def test_valid_delay_before_0(self):
-        parser, exp = test_parse(trial_types=[TType('a', type='t', delay_before=0)], layout=[Text('a', '')], return_exp=True)
+        parser, exp = test_parse(trial_types=[TType('a', type_name='t', delay_before=0)], layout=[Text('a', '')], return_exp=True)
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertEqual(0, exp.trial_types['t'].steps[0].delay_before)
 
     def test_negative_delay_before_is_invalid(self):
-        parser, exp = test_parse(trial_types=[TType('a', type='t', delay_before=-1)], layout=[Text('a', '')], return_exp=True)
+        parser, exp = test_parse(trial_types=[TType('a', type_name='t', delay_before=-1)], layout=[Text('a', '')], return_exp=True)
         self.assertTrue(parser.errors_found)
         self.assertTrue('INVALID_NUMERIC_VALUE' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
     def test_str_delay_before_is_invalid(self):
-        parser, exp = test_parse(trial_types=[TType('a', type='t', delay_before='abc')], layout=[Text('a', '')], return_exp=True)
+        parser, exp = test_parse(trial_types=[TType('a', type_name='t', delay_before='abc')], layout=[Text('a', '')], return_exp=True)
         self.assertTrue(parser.errors_found)
         self.assertTrue('NON_NUMERIC_VALUE' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
     def test_empty_delay_before_is_valid(self):
-        parser, exp = test_parse(trial_types=[TType('a', type='t', delay_before='')], layout=[Text('a', '')], return_exp=True)
+        parser, exp = test_parse(trial_types=[TType('a', type_name='t', delay_before='')], layout=[Text('a', '')], return_exp=True)
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertEqual(0, exp.trial_types['t'].steps[0].delay_before)
 
     def test_none_delay_before_is_valid(self):
-        parser, exp = test_parse(trial_types=[TType('a', type='t', delay_before=None)], layout=[Text('a', '')], return_exp=True)
+        parser, exp = test_parse(trial_types=[TType('a', type_name='t', delay_before=None)], layout=[Text('a', '')], return_exp=True)
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertEqual(0, exp.trial_types['t'].steps[0].delay_before)
 
 
     def test_valid_delay_after(self):
-        parser, exp = test_parse(trial_types=[TType('a', type='t', delay_after='1.5')], layout=[Text('a', '')], return_exp=True)
+        parser, exp = test_parse(trial_types=[TType('a', type_name='t', delay_after='1.5')], layout=[Text('a', '')], return_exp=True)
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertEqual(1.5, exp.trial_types['t'].steps[0].delay_after)
 
     def test_valid_delay_after_0(self):
-        parser, exp = test_parse(trial_types=[TType('a', type='t', delay_after=0)], layout=[Text('a', '')], return_exp=True)
+        parser, exp = test_parse(trial_types=[TType('a', type_name='t', delay_after=0)], layout=[Text('a', '')], return_exp=True)
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertEqual(0, exp.trial_types['t'].steps[0].delay_after)
 
     def test_negative_delay_after_is_invalid(self):
-        parser, exp = test_parse(trial_types=[TType('a', type='t', delay_after=-1)], layout=[Text('a', '')], return_exp=True)
+        parser, exp = test_parse(trial_types=[TType('a', type_name='t', delay_after=-1)], layout=[Text('a', '')], return_exp=True)
         self.assertTrue(parser.errors_found)
         self.assertTrue('INVALID_NUMERIC_VALUE' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
     def test_str_delay_after_is_invalid(self):
-        parser, exp = test_parse(trial_types=[TType('a', type='t', delay_after='abc')], layout=[Text('a', '')], return_exp=True)
+        parser, exp = test_parse(trial_types=[TType('a', type_name='t', delay_after='abc')], layout=[Text('a', '')], return_exp=True)
         self.assertTrue(parser.errors_found)
         self.assertTrue('NON_NUMERIC_VALUE' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
     def test_empty_delay_after_is_valid(self):
-        parser, exp = test_parse(trial_types=[TType('a', type='t', delay_after='')], layout=[Text('a', '')], return_exp=True)
+        parser, exp = test_parse(trial_types=[TType('a', type_name='t', delay_after='')], layout=[Text('a', '')], return_exp=True)
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertEqual(0, exp.trial_types['t'].steps[0].delay_after)
 
     def test_none_delay_after_is_valid(self):
-        parser, exp = test_parse(trial_types=[TType('a', type='t', delay_after=None)], layout=[Text('a', '')], return_exp=True)
+        parser, exp = test_parse(trial_types=[TType('a', type_name='t', delay_after=None)], layout=[Text('a', '')], return_exp=True)
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertEqual(0, exp.trial_types['t'].steps[0].delay_after)
@@ -733,21 +733,21 @@ class TrialsTests(unittest.TestCase):
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
     def test_trial_type_can_be_specified_when_there_is_a_single_type(self):
-        parser = test_parse(trial_types=[TType('f1', type='t1')], layout=[Text('f1', '')], trials=[Trial(type='t1')])
+        parser = test_parse(trial_types=[TType('f1', type_name='t1')], layout=[Text('f1', '')], trials=[Trial(type='t1')])
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
     def test_trial_col_must_be_specified_when_there_are_multiple_types(self):
-        parser = test_parse(trial_types=[TType('f1', type='t1'), TType('f1', type='t2')], layout=[Text('f1', '')], trials=[Trial()])
+        parser = test_parse(trial_types=[TType('f1', type_name='t1'), TType('f1', type_name='t2')], layout=[Text('f1', '')], trials=[Trial()])
         self.assertTrue(parser.errors_found)
         self.assertTrue('NO_TYPE_IN_TRIALS_WS' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
     def test_trial_type_must_be_specified_when_there_are_multiple_types(self):
-        parser = test_parse(trial_types=[TType('f1', type='t1'), TType('f1', type='t2')], layout=[Text('f1', '')], trials=[Trial(type='')])
+        parser = test_parse(trial_types=[TType('f1', type_name='t1'), TType('f1', type_name='t2')], layout=[Text('f1', '')], trials=[Trial(type='')])
         self.assertTrue(parser.errors_found)
         self.assertTrue('TRIALS_NO_TRIAL_TYPE' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
     def test_unknown_trial_type(self):
-        parser = test_parse(trial_types=[TType('f1', type='t1'), TType('f1', type='t2')], layout=[Text('f1', '')], trials=[Trial(type='ttt')])
+        parser = test_parse(trial_types=[TType('f1', type_name='t1'), TType('f1', type_name='t2')], layout=[Text('f1', '')], trials=[Trial(type='ttt')])
         self.assertTrue(parser.errors_found)
         self.assertTrue('TRIALS_INVALID_TRIAL_TYPE' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
@@ -757,7 +757,7 @@ class TrialsTests(unittest.TestCase):
 
     #----------------
     def test_fields_assigned(self):
-        parser, exp = test_parse(trial_types=[TType('f1', type='t1')], layout=[Text('f1', '')],
+        parser, exp = test_parse(trial_types=[TType('f1', type_name='t1')], layout=[Text('f1', '')],
                                  trials=[Trial(type='t1', f1='hello')],
                                  return_exp=True)
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
@@ -766,7 +766,7 @@ class TrialsTests(unittest.TestCase):
 
     #----------------
     def test_multiple_fields_assigned(self):
-        parser, exp = test_parse(trial_types=[TType('f1,f2', type='t1')], layout=[Text('f1', ''), Text('f2', '')],
+        parser, exp = test_parse(trial_types=[TType('f1,f2', type_name='t1')], layout=[Text('f1', ''), Text('f2', '')],
                                  trials=[Trial(type='t1', f1='hello', f2='there')],
                                  return_exp=True)
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
@@ -775,14 +775,14 @@ class TrialsTests(unittest.TestCase):
 
     #----------------
     def test_excessive_fields_ignored(self):
-        parser, exp = test_parse(trial_types=[TType('f1', type='t1')], layout=[Text('f1', ''), Text('f2', '')],
+        parser, exp = test_parse(trial_types=[TType('f1', type_name='t1')], layout=[Text('f1', ''), Text('f2', '')],
                                  trials=[Trial(type='t1', f1='hello', f2='kuku')],
                                  return_exp=True)
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
     #----------------
     def test_unknown_fields_are_invalid(self):
-        parser, exp = test_parse(trial_types=[TType('f1', type='t1')], layout=[Text('f1', ''), Text('f2', '')],
+        parser, exp = test_parse(trial_types=[TType('f1', type_name='t1')], layout=[Text('f1', ''), Text('f2', '')],
                                  trials=[Trial(type='t1', f1='hello', f3='kuku')],
                                  return_exp=True)
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))

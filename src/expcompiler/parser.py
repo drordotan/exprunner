@@ -236,7 +236,7 @@ class Parser(object):
 
         else:
             self.logger.error('Error in worksheet "{}", cell {}{}: type="{}" is unknown, only "text" is supported'.
-                              format(expcompiler.xlsreader.XlsReader.ws_layout, col_names['type'], xls_line_num, row.type_name),
+                              format(expcompiler.xlsreader.XlsReader.ws_layout, col_names['type'], xls_line_num, row.type),
                               'INVALID_CONTROL_TYPE')
             self.errors_found = True
             return None
@@ -502,7 +502,7 @@ class Parser(object):
 
         if type_name.lower() == 'type':
             self.logger.error('Error in worksheet "{}", cell {}{}: A trial type named "{}" is invalid.'
-                              .format(expcompiler.xlsreader.XlsReader.ws_trial_type, col_names['type'], xls_line_num, type_name),
+                              .format(expcompiler.xlsreader.XlsReader.ws_trial_type, col_names['type_name'], xls_line_num, type_name),
                               'TRIAL_TYPE_INVALID_TYPE_NAME')
             self.errors_found = True
             return None
