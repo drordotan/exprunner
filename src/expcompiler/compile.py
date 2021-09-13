@@ -24,7 +24,7 @@ def compile_exp(src_fn, target_fn, reader=None, logger=None):
     if script is None:
         return 2
 
-    with open(target_fn, 'w') as fp:
+    with open(target_fn, 'w', encoding="utf-8") as fp:
         fp.write(script)
 
     if parser.warnings_found:

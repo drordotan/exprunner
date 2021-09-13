@@ -29,7 +29,7 @@ class Experiment(object):
         self.full_screen = full_screen              # Whether app should run in full screen mode
         self.save_results = save_results            # Whether results should be saved or not
         self.title = title
-        self.instructions = () if instructions is None else tuple(instructions)
+        self.instructions = [] if instructions is None else list(instructions)
 
         self.layout = {}        # Layout items (controls), key = name
         self.trial_types = {}   # key = name, value = TrialType
@@ -94,12 +94,20 @@ class KbResponse(Response):
 #===============================================================================================
 # Other items
 #===============================================================================================
+class Instruction(object):
+    """
+    Defines an instruction
+    """
+
+    def __init__(self, text, response_names):
+        self.text = text
+        self.response_names = response_names
+
 
 #-----------------------------------------------------------
 class TrialType(object):
     """
     Defines the flow of a trial
-    todo: use this for instructions too?
     """
 
     default_name = "default"

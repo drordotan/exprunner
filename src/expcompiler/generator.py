@@ -61,7 +61,7 @@ class ExpGenerator(object):
         script = script.replace('${title}', self.generate_title_part(exp))
         script = script.replace('${layout_css}', self.generate_layout_css(exp))
         # script = script.replace('${instructions}', self.generate_instructions(exp))
-        script = script.replace('${trials}', self.generate_trials(exp))
+        script = script.replace('${trials}', self.generate_experiments(exp))
         script = script.replace('${trial_flow}', self.generate_trial_flow(exp))
 
         return script
@@ -101,22 +101,21 @@ class ExpGenerator(object):
         result.append("}")
         return result
 
-
     #------------------------------------------------------------
-    #  Code replacing the ${trials} keyword
+    #  Code replacing the ${instructions} keyword
     #------------------------------------------------------------
+    #------------------------------------------------------------
+    #TODO: finish func generate_instructions
+    def generate_instructions(self, exp):
 
-    #----------------------------------------------------------------------------
-    def generate_trials(self, exp):
-        lines = [line for trial in exp.trials for line in self.generate_trial(trial, exp)]
+        lines = [line for instruction in exp.instructions for line in self.generate_instruction(instruction, exp)]
         return "\n".join(lines)
 
-
     #----------------------------------------------------------------------------
-    def generate_trial(self, trial, exp):
+    def generate_instruction(self, instruction, exp):
         result = []
 
-        ttype = exp.trial_types[trial.trial_type]
+        text = instruction.text
         line_prefix = "{ "
         for step in ttype.steps:
 
@@ -148,6 +147,75 @@ class ExpGenerator(object):
             line_prefix = "  "
 
         result[-1] += " }, "
+
+        return [(" " * 8) + r for r in result]
+    #------------------------------------------------------------
+    #  Code replacing the ${trials} keyword
+    #------------------------------------------------------------
+    #----------------------------------------------------------------------------
+    def generate_experiments(self, exp):
+        lines = []
+        for trial_type in exp.trial_types:
+            lines.append(self.generate_trial_type(trial_type, exp))
+        return "\n".join(lines)
+
+    #----------------------------------------------------------------------------
+    def generate_trial_type(self, trial_type, exp):
+        result = "const {} = [\n".format(trial_type)
+        result += self.generate_trials(exp, trial_type)+"]\n"
+        return result
+
+
+    #----------------------------------------------------------------------------
+    def generate_trials(self, exp, trial_type):
+        lines = []
+        for trial in exp.trials:
+            if trial.trial_type == trial_type:
+                for line in self.generate_trial(trial, exp):
+                    lines.append(line)
+
+        return "\n".join(lines)
+
+
+    #----------------------------------------------------------------------------
+    def generate_trial(self, trial, exp):
+        result = []
+
+        ttype = exp.trial_types[trial.trial_type]
+        line_prefix = "{ "
+
+        for step in ttype.steps:
+
+            step_line = '{}{}: "'.format(line_prefix, self._step_name(step, ttype))
+
+            #-- Add one <div> for each control
+            for ctl_name in sorted(step.control_names):
+
+                #-- <div> definition
+                step_line += '<div class='.format(line_prefix, ctl_name) + "'" + ctl_name + "'"
+
+                #-- Trial-specific formatting
+                if ctl_name in trial.css:
+                    for css_attr, value in trial.css[ctl_name].items():
+                        step_line += " {}='{}'".format(css_attr, _to_str(value))
+
+                step_line += '>'
+
+                #-- Value of this control.
+                #todo: Probably this would be needed only for TextControl; TBD later
+                if ctl_name in trial.control_values:
+                    step_line += trial.control_values[ctl_name]
+
+                step_line += '</div>'
+
+            step_line += '",'
+            result.append(step_line)
+
+            line_prefix = "  "
+
+        result[-1] += " }, "
+
+
 
         return [(" " * 8) + r for r in result]
 

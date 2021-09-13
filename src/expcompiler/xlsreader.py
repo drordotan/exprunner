@@ -16,6 +16,7 @@ class XlsReader(object):
 
     #-- Worksheet names
     ws_general = 'general'
+    ws_instructions = 'instructions'
     ws_trial_type = 'trial_type'
     ws_layout = 'layout'
     ws_response = 'response'
@@ -72,6 +73,16 @@ class XlsReader(object):
 
         return self._load_worksheet_as_data_frame(XlsReader.ws_general, ('param', 'value'), converters=dict(value=_parse_str))
 
+    #--------------------------------------------------
+    def instructions_config(self):
+        """
+        Return instructions config parameters, as a dictionary with several entries
+        :return:
+        """
+        if XlsReader.ws_instructions not in self.worksheets:
+            return None
+
+        return self._load_worksheet_as_data_frame(XlsReader.ws_instructions, ('text', 'response'), converters=dict(value=_parse_str))
 
     #--------------------------------------------------
     def _load_worksheet_as_data_frame(self, ws_name, expected_col_names=(), converters=None):

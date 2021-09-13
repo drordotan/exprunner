@@ -55,6 +55,7 @@ class Parser(object):
         self.parse_layout(exp)
         self.parse_responses(exp)
         self.parse_trial_type(exp)
+        self.parse_instructions(exp)
         self.parse_trials(exp)
 
         return exp
@@ -77,8 +78,6 @@ class Parser(object):
         if background_color is not None:
             self._validate_color_code(background_color, expcompiler.xlsreader.XlsReader.ws_general, 'parameter "background_color"')
 
-        instructions = self._get_param_multi_values(df, 'instructions', as_str=True)
-        instructions = [i for i in instructions if not _isempty(i)]
 
         exp = expcompiler.experiment.Experiment(get_subj_id=get_subj_id,
                                                 get_session_id=get_session_id,
@@ -86,8 +85,7 @@ class Parser(object):
                                                 results_filename=self._results_filename(results_filename_prefix, get_subj_id, get_session_id),
                                                 background_color=background_color,
                                                 full_screen=self._get_bool_param(df, 'full_screen', False),
-                                                title=self._get_param(df, 'title', as_str=True) or '',
-                                                instructions=instructions)
+                                                title=self._get_param(df, 'title', as_str=True) or '')
         return exp
 
 
@@ -404,6 +402,123 @@ class Parser(object):
 
         return expcompiler.experiment.ClickButtonResponse(resp_id, value, text)
 
+    #=========================================================================================
+    # Parse the "instructions" sheet
+    #=========================================================================================
+    #-----------------------------------------------------------------------------
+
+    def parse_instructions(self, exp):
+        """
+        Parse the "instructions" worksheet, which contains one line per trial type
+        """
+        df = self.reader.instructions_config()
+        if df.shape[0] == 0:
+            self.logger.error('Error in worksheet "{}": no instructions were specified.'.format(expcompiler.xlsreader.XlsReader.ws_instructions),
+                              'NO_INSTRUCTIONS')
+            self.errors_found = True
+            return
+
+        col_names = _get_col_names(df)
+        for i, row in df.iterrows():
+
+            instruction = self._parse_instruction(exp, row, i+2, col_names)
+            if instruction is not None:
+                exp.instructions.append(instruction)
+
+
+    #-----------------------------------------------------------------------------
+    def _parse_instruction(self, exp, row, xls_line_num, col_names):
+        """
+        Parse one instruction - i.e. one line from the instructions worksheet
+
+        :param exp: The Experiment object
+        :param row: The row from the DataFrame
+        :param xls_line_num: The Excel line number
+        """
+
+        text = self._parse_text(row, xls_line_num, col_names)
+        response_names = self._parse_instruction_responses(exp, row, xls_line_num, col_names)
+
+        responses_defined = response_names is not None and len(response_names) > 0
+
+        if not responses_defined:
+            self.logger.error(
+                'Error in worksheet "{}", line {}: An instruction without response is invalid.'
+                .format(expcompiler.xlsreader.XlsReader.ws_instructions, xls_line_num),
+                'MUST_DEFINE_RESPONSE')
+            self.errors_found = True
+
+        if text is None or response_names is None:
+            instruction = None
+        else:
+            instruction = expcompiler.experiment.Instruction(text, response_names)
+
+        return instruction
+
+    #-----------------------------------------------------------------------------
+    def _parse_text(self, row, xls_line_num, col_names):
+
+        text = row.text
+        if _isempty(text):
+            self.logger.error('Error in worksheet "{}", cell {}{}: "text" was not specified.'
+                              .format(expcompiler.xlsreader.XlsReader.ws_instructions, col_names['text'], xls_line_num),
+                              'TEXT_MISSING')
+            self.errors_found = True
+            return None
+
+        else:
+            text = str(text)
+
+        if text.lower() == 'text':
+            self.logger.error('Error in worksheet "{}", cell {}{}: A trial type named "{}" is invalid.'
+                              .format(expcompiler.xlsreader.XlsReader.ws_instructions, col_names['text'], xls_line_num, text),
+                              'TRIAL_TYPE_INVALID_TYPE_NAME')
+            self.errors_found = True
+            return None
+
+        return text
+
+    #-----------------------------------------------------------------------------
+    def _parse_instruction_responses(self, exp, row, xls_line_num, col_names):
+
+        if 'response' not in col_names:
+            return None
+
+        responses_str = row.response
+        if _isempty(responses_str):
+            return None
+        else:
+            responses = [r.strip() for r in responses_str.split(",")]
+
+        #-- Avoid duplicate responses
+        if len(responses) != len(set(responses)):
+            self.logger.error('Warning in worksheet "{}", cell {}{}, column "responses": some responses were specified more than once (the duplicates were ignored).'
+                              .format(expcompiler.xlsreader.XlsReader.ws_instructions, col_names['response'], xls_line_num),
+                              'INSTRUCTION_DUPLICATE_RESPONSES')
+            self.warnings_found = True
+            responses = list(set(responses))
+
+        #-- Validate that the responses actually exist
+        invalid_resp = [r for r in responses if r not in exp.responses]
+        if len(invalid_resp) > 0:
+            self.logger.error('Error in worksheet "{}", cell {}{}: the response "{}" were not specified in the "{}" worksheet. They were ignored.'
+                              .format(expcompiler.xlsreader.XlsReader.ws_instructions, col_names['response'], xls_line_num, ",".join(invalid_resp),
+                                      expcompiler.xlsreader.XlsReader.ws_response),
+                              'INSTRUCTION_INVALID_RESPONSE_NAMES')
+            self.errors_found = True
+            responses = [r for r in responses if r not in invalid_resp]
+
+        if len(responses) == 0:
+            return None
+
+        response_types = set([type(exp.responses[r]) for r in responses])
+        if len(response_types) > 1:
+            self.logger.error('Warning in worksheet "{}", cell {}{}: the response/s "{}" are of several types. Normally, all responses in a single step are of the same type.'
+                              .format(expcompiler.xlsreader.XlsReader.ws_trial_type, col_names['responses'], xls_line_num, ",".join(responses)),
+                              'TRIAL_TYPE_MULTIPLE_RESPONSE_TYPES')
+            self.warnings_found = True
+
+        return responses
 
     #=========================================================================================
     # Parse the "trial_type" sheet
