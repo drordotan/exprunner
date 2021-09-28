@@ -25,7 +25,8 @@ ${trials}
 
 ${trial_flow}
 
-    timeline.push(trial_procedure);
+
+
 
     /* start the experiment */
     jsPsych.init({
