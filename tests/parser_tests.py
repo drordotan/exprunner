@@ -8,15 +8,20 @@ NO_VALUE = "__NO_VALUE__"
 
 
 #-----------------------------------------------------------------------------
-def test_parse(general=None, layout=None, trial_types=None, responses=None, trials=None, return_exp=False):
+def test_parse(general=None, layout=None, trial_types=None, responses=None, trials=None, instructions=None, return_exp=False,
+               parsing_config=None):
 
-    reader = ReaderForTests(general=general, layout=layout, trial_types=trial_types, respones=responses, trials=trials)
+    if parsing_config is None:
+        parsing_config = dict(instructions_mandatory=False)
+
+    reader = ReaderForTests(general=general, layout=layout, trial_types=trial_types, respones=responses, trials=trials, instructions=instructions)
 
     parser = ParserForTests(reader,
                             parse_layout=layout is not None,
                             parse_trial_types=trial_types is not None,
                             parse_trials=trials is not None)
-    exp = parser.parse()
+
+    exp = parser.parse(parsing_config)
 
     if return_exp:
         return parser, exp
@@ -36,6 +41,14 @@ def Text(ctl_name, text='', **kwargs):
     kwargs['layout_name'] = ctl_name
     kwargs['type'] = 'text'
     kwargs['text'] = text
+    return kwargs
+
+
+#-----------------------------------------------------------------------------
+# noinspection PyPep8Naming
+def Instruction(text, responses, **kwargs):
+    kwargs['text'] = text
+    kwargs['responses'] = responses
     return kwargs
 
 
@@ -241,41 +254,6 @@ class GeneralWsTests(unittest.TestCase):
         self.assertEqual('t1', exp.title)
 
 
-    #--------------------------------------------------------
-    # Instructions
-    #--------------------------------------------------------
-
-    def test_instructions_default(self):
-        parser, exp = test_parse(general=[], return_exp=True)
-        self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
-        self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
-        self.assertEqual((), exp.instructions)
-
-    def test_instructions_once(self):
-        parser, exp = test_parse(general=[G('instructions', 'line 1')], return_exp=True)
-        self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
-        self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
-        self.assertEqual(('line 1', ), exp.instructions)
-
-    def test_instructions_once_numeric(self):
-        parser, exp = test_parse(general=[G('instructions', 1)], return_exp=True)
-        self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
-        self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
-        self.assertEqual(('1', ), exp.instructions)
-
-    def test_instructions_multiple(self):
-        parser, exp = test_parse(general=[G('instructions', 'line 1'), G('instructions', 'line 2'), G('instructions', 'line 3')], return_exp=True)
-        self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
-        self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
-        self.assertEqual(('line 1', 'line 2', 'line 3'), exp.instructions)
-
-    def test_instructions_empty_value_ignored(self):
-        parser, exp = test_parse(general=[G('instructions', 'line 1'), G('instructions', ''), G('instructions', 'line 3')], return_exp=True)
-        self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
-        self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
-        self.assertEqual(('line 1', 'line 3'), exp.instructions)
-
-
 #=============================================================================================
 class LayoutTests(unittest.TestCase):
 
@@ -457,6 +435,109 @@ class ResponsesTests(unittest.TestCase):
         parser = test_parse(responses=[dict(response_name='r1', type='button', value=1)])
         self.assertTrue(parser.errors_found)
         self.assertTrue('MISSING_BUTTON_RESPONSE_TEXT_COL' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+
+
+# =============================================================================================
+class InstructionsTests(unittest.TestCase):
+
+    default_resp = [KbResponse('kb1', 1, '/'), KbResponse('kb2', 2, 'p')]
+
+    def test_no_instructions_valid(self):
+        parser, exp = test_parse(return_exp=True)
+        self.assertFalse(parser.errors_found, 'error codes: '+','.join(parser.logger.err_codes.keys()))
+        self.assertFalse(parser.warnings_found, 'error codes: '+','.join(parser.logger.err_codes.keys()))
+        self.assertEqual([], exp.instructions)
+
+    def test_no_instructions_invalid(self):
+        parser, exp = test_parse(return_exp=True, parsing_config=dict(instructions_mandatory=True))
+        self.assertFalse(parser.errors_found, 'error codes: '+','.join(parser.logger.err_codes.keys()))
+        self.assertTrue(parser.warnings_found)
+        self.assertTrue('NO_INSTRUCTIONS' in parser.logger.err_codes, 'error codes: '+','.join(parser.logger.err_codes.keys()))
+        self.assertEqual([], exp.instructions)
+
+    def test_1_instructions_page(self):
+        parser, exp = test_parse(return_exp=True, instructions=[Instruction('hi', 'kb1')], responses=InstructionsTests.default_resp)
+        self.assertFalse(parser.errors_found, 'error codes: '+','.join(parser.logger.err_codes.keys()))
+        self.assertFalse(parser.warnings_found, 'error codes: '+','.join(parser.logger.err_codes.keys()))
+        self.assertEqual(1, len(exp.instructions))
+        i = exp.instructions[0]
+        self.assertEqual('hi', i.text)
+        self.assertEqual(['kb1'], i.response_names)
+
+    def test_instructions_with_multiple_responses(self):
+        parser, exp = test_parse(return_exp=True, instructions=[Instruction('hi', 'kb1,kb2')], responses=InstructionsTests.default_resp)
+        self.assertFalse(parser.errors_found, 'error codes: '+','.join(parser.logger.err_codes.keys()))
+        self.assertFalse(parser.warnings_found, 'error codes: '+','.join(parser.logger.err_codes.keys()))
+        self.assertEqual(1, len(exp.instructions))
+        i = exp.instructions[0]
+        self.assertEqual('hi', i.text)
+        self.assertEqual(['kb1', 'kb2'], i.response_names)
+
+    def test_2_instructions_pages(self):
+        parser, exp = test_parse(return_exp=True, instructions=[Instruction('hi', 'kb1'), Instruction('hi2', 'kb2')],
+                                 responses=InstructionsTests.default_resp)
+        self.assertFalse(parser.errors_found, 'error codes: '+','.join(parser.logger.err_codes.keys()))
+        self.assertFalse(parser.warnings_found, 'error codes: '+','.join(parser.logger.err_codes.keys()))
+        self.assertEqual(2, len(exp.instructions))
+        i1 = exp.instructions[0]
+        i2 = exp.instructions[1]
+        self.assertEqual('hi', i1.text)
+        self.assertEqual(['kb1'], i1.response_names)
+        self.assertEqual('hi2', i2.text)
+        self.assertEqual(['kb2'], i2.response_names)
+
+    #---- Invalid definitions: problem with definition of instructions text
+
+    def test_no_text_column(self):
+        parser, exp = test_parse(return_exp=True, instructions=[dict(responses='kb1')], responses=InstructionsTests.default_resp)
+        self.assertTrue(parser.errors_found)
+        self.assertFalse(parser.warnings_found, 'error codes: '+','.join(parser.logger.err_codes.keys()))
+        self.assertTrue('INSTRUCTIONS_MISSING_TEXT_COL' in parser.logger.err_codes, 'error codes: '+','.join(parser.logger.err_codes.keys()))
+
+    def test_empty_text(self):
+        parser, exp = test_parse(return_exp=True, instructions=[Instruction('', 'kb1')], responses=InstructionsTests.default_resp)
+        self.assertTrue(parser.errors_found)
+        self.assertFalse(parser.warnings_found, 'error codes: '+','.join(parser.logger.err_codes.keys()))
+        self.assertTrue('INSTRUCTION_TEXT_MISSING' in parser.logger.err_codes, 'error codes: '+','.join(parser.logger.err_codes.keys()))
+
+    #---- Invalid definitions: problem with definition of responses
+
+    def test_no_responses_column(self):
+        parser, exp = test_parse(return_exp=True, instructions=[dict(text='xxx')], responses=InstructionsTests.default_resp)
+        self.assertTrue(parser.errors_found)
+        self.assertFalse(parser.warnings_found, 'error codes: '+','.join(parser.logger.err_codes.keys()))
+        self.assertTrue('INSTRUCTIONS_MISSING_RESPONSE_COL' in parser.logger.err_codes, 'error codes: '+','.join(parser.logger.err_codes.keys()))
+
+    def test_responses_none(self):
+        parser, exp = test_parse(return_exp=True, instructions=[Instruction('hi', None)], responses=InstructionsTests.default_resp)
+        self.assertTrue(parser.errors_found)
+        self.assertFalse(parser.warnings_found, 'error codes: '+','.join(parser.logger.err_codes.keys()))
+        self.assertTrue('INSTRUCTIONS_MUST_DEFINE_RESPONSE' in parser.logger.err_codes, 'error codes: '+','.join(parser.logger.err_codes.keys()))
+
+    def test_responses_empty(self):
+        parser, exp = test_parse(return_exp=True, instructions=[Instruction('hi', '')], responses=InstructionsTests.default_resp)
+        self.assertTrue(parser.errors_found)
+        self.assertFalse(parser.warnings_found, 'error codes: '+','.join(parser.logger.err_codes.keys()))
+        self.assertTrue('INSTRUCTIONS_MUST_DEFINE_RESPONSE' in parser.logger.err_codes, 'error codes: '+','.join(parser.logger.err_codes.keys()))
+
+    def test_response_unknown(self):
+        parser, exp = test_parse(return_exp=True, instructions=[Instruction('hi', 'x')], responses=InstructionsTests.default_resp)
+        self.assertTrue(parser.errors_found)
+        self.assertFalse(parser.warnings_found, 'error codes: '+','.join(parser.logger.err_codes.keys()))
+        self.assertTrue('INSTRUCTION_INVALID_RESPONSE_NAMES' in parser.logger.err_codes, 'error codes: '+','.join(parser.logger.err_codes.keys()))
+
+    def test_response_duplicate(self):
+        parser, exp = test_parse(return_exp=True, instructions=[Instruction('hi', 'kb1,kb1')], responses=InstructionsTests.default_resp)
+        self.assertFalse(parser.errors_found, 'error codes: '+','.join(parser.logger.err_codes.keys()))
+        self.assertTrue(parser.warnings_found)
+        self.assertTrue('INSTRUCTION_DUPLICATE_RESPONSES' in parser.logger.err_codes, 'error codes: '+','.join(parser.logger.err_codes.keys()))
+
+    def test_responses_with_multiple_types(self):
+        parser, exp = test_parse(return_exp=True, instructions=[Instruction('hi', 'kb1,btn1')],
+                                 responses=[KbResponse('kb1', 1, '/'), BtnResponse('btn1', 2, 'p')])
+        self.assertTrue(parser.errors_found)
+        self.assertFalse(parser.warnings_found, 'error codes: '+','.join(parser.logger.err_codes.keys()))
+        self.assertTrue('INSTRUCTIONS_WITH_MULTIPLE_RESPONSE_TYPES' in parser.logger.err_codes, 'error codes: '+','.join(parser.logger.err_codes.keys()))
 
 
 #=============================================================================================

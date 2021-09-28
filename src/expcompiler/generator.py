@@ -98,6 +98,7 @@ class ExpGenerator(object):
     # ------------------------------------------------------------
     #  Code replacing the ${instructions} keyword
     # ------------------------------------------------------------
+
     # ------------------------------------------------------------
     # TODO: finish func generate_instructions
     def generate_instructions(self, exp):
@@ -148,6 +149,7 @@ class ExpGenerator(object):
     # ------------------------------------------------------------
     #  Code replacing the ${trials} keyword
     # ------------------------------------------------------------
+
     # ----------------------------------------------------------------------------
     def generate_experiments(self, exp):
         lines = []
@@ -214,6 +216,7 @@ class ExpGenerator(object):
     # ------------------------------------------------------------
     #  Code replacing the ${trial_flow} keyword
     # ------------------------------------------------------------
+
     # ----------------------------------------------------------------------------
     def generate_trials_flow(self, exp):
 

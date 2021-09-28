@@ -6,8 +6,9 @@ from expcompiler.parser import Parser
 #----------------------------------------------------------------------------------------------
 class ReaderForTests(object):
 
-    def __init__(self, general=None, layout=None, trial_types=None, respones=None, trials=None):
+    def __init__(self, general=None, layout=None, trial_types=None, respones=None, trials=None, instructions=None):
         self._general = _to_df(general, ['param', 'value'])
+        self._instructions_config = _to_df(instructions, ['instructions', 'text', 'responses'])
         self._layout = _to_df(layout, ['layout_name', 'type', 'text'])
         self._trial_types = _to_df(trial_types, ['layout items'])
         self._respones = _to_df(respones, ['response_name', 'type', 'value'])
@@ -20,6 +21,9 @@ class ReaderForTests(object):
 
     def general_config(self):
         return self._general
+
+    def instructions_config(self):
+        return self._instructions_config
 
     def layout(self):
         return self._layout
