@@ -12,13 +12,6 @@ import expcompiler
 
 _css_prefix = 'format:'
 
-#todo support getting trial duration from TRIALS page
-#todo support sound controls
-#todo support multiple trial typex
-#todo: "trial types" worksheet is optional. If omitted, all items appear without time limit. If responses are defined, they will be all used. If not, SPACE will advance to the next trial.
-#todo: warn if there are unused columns
-#todo: in "trials", error about columns with invalid names
-
 
 #===============================================================================================================================
 class Parser(object):
@@ -474,6 +467,7 @@ class Parser(object):
         else:
             return expcompiler.experiment.Instruction(text, response_names)
 
+
     #-----------------------------------------------------------------------------
     def _parse_text(self, row, xls_line_num, col_names):
 
@@ -484,17 +478,8 @@ class Parser(object):
             self.errors_found = True
             return None
 
-        text = str(row.text)
+        return str(row.text)
 
-        #todo-dh: why this?
-        if text.lower() == 'text':
-            self.logger.error('Error in worksheet "{}", cell {}{}: A trial type named "{}" is invalid.'
-                              .format(expcompiler.xlsreader.XlsReader.ws_instructions, col_names['text'], xls_line_num, text),
-                              'TRIAL_TYPE_INVALID_TYPE_NAME')
-            self.errors_found = True
-            return None
-
-        return text
 
     #-----------------------------------------------------------------------------
     def _parse_instruction_responses(self, exp, row, xls_line_num, col_names):
