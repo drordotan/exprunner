@@ -26,7 +26,11 @@ class StepType(enum.Enum):
     html_mouse_response = 'html-mouse-response'
 
 
+#============================================================================================
 class ExpGenerator(object):
+    """
+    Generate the HTML file for an experiment
+    """
 
     # ----------------------------------------------------------------------------
     def __init__(self, logger):
@@ -36,6 +40,9 @@ class ExpGenerator(object):
 
     # ----------------------------------------------------------------------------
     def _load_template(self):
+        """
+        Load the template file (contains HTML text with placeholders for JS code)
+        """
         template_filename = os.path.dirname(__file__) + os.sep + 'script_template.js'
         with open(template_filename, 'r') as fp:
             return fp.read()
@@ -43,7 +50,7 @@ class ExpGenerator(object):
     # ----------------------------------------------------------------------------
     def generate(self, exp):
         """
-        Generate the script.
+        Generate the HTML script for the given experiment.
 
         :type exp: expcompiler.experiment.Experiment
         """
@@ -55,53 +62,60 @@ class ExpGenerator(object):
 
         self.errors_found = False
         script = self.template
-        script = script.replace('${title}', self.generate_title_part(exp))
-        script = script.replace('${layout_css}', self.generate_layout_css(exp))
-        script = script.replace('${instructions}', self.generate_instructions(exp))
-        script = script.replace('${trials}', self.generate_experiments(exp))
-        script = script.replace('${trial_flow}', self.generate_trials_flow(exp))
+        script = script.replace('${title}', self.generate_title_code(exp))
+        script = script.replace('${layout_css}', self.generate_layout_code(exp))
+        script = script.replace('${instructions}', self.generate_instructions_code(exp))
+        script = script.replace('${trials}', self.generate_trials_code(exp))
+        script = script.replace('${trial_flow}', self.generate_trial_flow_code(exp))
 
         return script
 
-    # ------------------------------------------------------------
+    #------------------------------------------------------------
     #  Code replacing the ${title} keyword
-    # ------------------------------------------------------------
+    #------------------------------------------------------------
 
-    def generate_title_part(self, exp):
+    def generate_title_code(self, exp):
         return html.escape(exp.title or '')
 
-    # ------------------------------------------------------------
-    #  Code replacing the ${layout} keyword
-    # ------------------------------------------------------------
 
-    # ----------------------------------------------------------------------------
-    def generate_layout_css(self, exp):
+    #------------------------------------------------------------
+    #  Code replacing the ${layout} keyword
+    #------------------------------------------------------------
+
+    #----------------------------------------------------------------------------
+    def generate_layout_code(self, exp):
+        """ Main function in this part - returns the text replacing the ${layout} keyword """
         result = []
         for control in exp.layout.values():
             if isinstance(control, expobj.TextControl):
-                result.extend(self.generate_layout_css_text(control))
+                result.extend(self.generate_single_layout_css_text(control))
 
         return "\n".join([(" " * 8) + r for r in result])
 
-    # ----------------------------------------------------------------------------
-    def generate_layout_css_text(self, ctl):
-        result = []
-        result.append(".{}".format(ctl.name) + " {")
-        result.append("    top: {};".format(ctl.y))
-        result.append("    left: {};".format(ctl.x))
-        result.append("    width: {};".format(ctl.width))
+    #----------------------------------------------------------------------------
+    def generate_single_layout_css_text(self, ctl):
+        """
+        Generate the CSS for a single control
+        """
+        result = [
+            ".{}".format(ctl.name)+" {",
+            "    top: {};".format(ctl.y),
+            "    left: {};".format(ctl.x),
+            "    width: {};".format(ctl.width)
+        ]
+
         for k, v in ctl.css.items():
             result.append("    {}: {};".format(k, v))
         result.append("}")
         return result
 
-    # ------------------------------------------------------------
+    #------------------------------------------------------------
     #  Code replacing the ${instructions} keyword
-    # ------------------------------------------------------------
+    #------------------------------------------------------------
 
     # ------------------------------------------------------------
     # TODO: finish func generate_instructions
-    def generate_instructions(self, exp):
+    def generate_instructions_code(self, exp):
         lst = []
         for pos, instruction in enumerate(exp.instructions):
             lst.append(self.generate_instruction(instruction, pos, exp))
@@ -130,28 +144,33 @@ class ExpGenerator(object):
     def generate_instruction_flow(self, exp, pos, response_names):
         step_num = 'instruction{}_step = '.format(pos)
         type_name = 'instruction{} = '.format(pos)
-        result = []
-        result.append('\nconst instruction{}_step = '.format(pos))
-        result.append('{')
-        result.append("    type: 'html-keyboard-response',")
-        result.append("    stimulus: jsPsych.timelineVariable('instruction{}_step'), ".format(pos))
-        result.append("    choices: {},".format(self.step_response_keys(step_num, response_names, type_name, exp)))
-        result.append("}\n")
+        choices = self.step_response_keys(step_num, response_names, type_name, exp)
 
-        result.append('const instruction{}_procedure = '.format(pos))
-        result.append('{')
-        result.append('  timeline: [instruction{}_step],'.format(pos))
-        result.append('  timeline_variables: instruction{}_data,'.format(pos))
-        result.append('}')
-        result.append("timeline.push(instruction{}_procedure);\n".format(pos))
-        return "\n".join(result)
+        result = """
+        const instruction${pos}_step =
+        {
+            type: 'html-keyboard-response',
+            stimulus: jsPsych.timelineVariable('instruction${pos}_step'),
+            choices: {},
+        }
+        
+        const instruction${pos}_flow =
+        {
+            timeline: [instruction${pos}_step],
+            timeline_variables: instruction${pos}_data,
+        }
+        
+        timeline.push(instruction${pos}_flow);
+        """.replace('${pos}', pos).format(choices)
 
-    # ------------------------------------------------------------
+        return result
+
+    #------------------------------------------------------------
     #  Code replacing the ${trials} keyword
-    # ------------------------------------------------------------
+    #------------------------------------------------------------
 
-    # ----------------------------------------------------------------------------
-    def generate_experiments(self, exp):
+    #----------------------------------------------------------------------------
+    def generate_trials_code(self, exp):
         lines = []
         for trial_type in exp.trial_types:
             lines.append(self.generate_trial_type(trial_type, exp))
@@ -218,24 +237,28 @@ class ExpGenerator(object):
     # ------------------------------------------------------------
 
     # ----------------------------------------------------------------------------
-    def generate_trials_flow(self, exp):
+    def generate_trial_flow_code(self, exp):
+        """
+        Generate the full code replacing the ${trial_flow} keyword
+        """
 
-        lst = [self.generate_trial_flow(exp, trial_type) for trial_type in exp.trial_types]
+        #todo: probably need to create a single flow supporting all trial types (is this possible?)
+        lst = [self.generate_flow_for_one_trial_type(exp, trial_type) for trial_type in exp.trial_types]
         return "\n".join(lst)
 
     # ----------------------------------------------------------------------------
-    def generate_trial_flow(self, exp, trial_type):
+    def generate_flow_for_one_trial_type(self, exp, trial_type):
 
         ttype = exp.trial_types[trial_type]
-        step_type_def_lines = [line for step in ttype.steps for line in self.generate_trial_step_flow(step, ttype, exp)]
+        step_type_def_lines = [line for step in ttype.steps for line in self.generate_flow_for_one_trial_step(step, ttype, exp)]
 
-        trial_procedure_lines = self.trial_procedure_lines(ttype, exp)
+        trial_flow_lines = self.trial_flow_lines(ttype, exp)
 
-        all_lines = [(" " * 4) + line for line in step_type_def_lines + [''] + trial_procedure_lines]
+        all_lines = [(" " * 4) + line for line in step_type_def_lines + [''] + trial_flow_lines]
         return "\n".join(all_lines)
 
     # ----------------------------------------------------------------------------
-    def generate_trial_step_flow(self, step, ttype, exp):
+    def generate_flow_for_one_trial_step(self, step, ttype, exp):
         result = []
 
         step_name = self._step_name(step, ttype)
@@ -264,7 +287,7 @@ class ExpGenerator(object):
 
     # ----------------------------------------------------------------------------
     def _step_name(self, step, ttype):
-        return '{}_step{}'.format(ttype.name, step.num)
+        return 'trial_type_{}_step{}'.format(ttype.name, step.num)
 
     # ----------------------------------------------------------------------------
     def _step_type(self, step, ttype, exp):
@@ -273,10 +296,6 @@ class ExpGenerator(object):
 
         :return: StepType
         """
-        print("start")
-        for c in step.control_names:
-            print(c)
-        print("end")
         control_types = {type(exp.layout[c]) for c in step.control_names}
         if len(control_types) != 1:
             type_names = ", ".join([t.__name__ for t in control_types])
@@ -313,17 +332,17 @@ class ExpGenerator(object):
             return "[" + ", ".join(["'{}'".format(resp.key) for resp in responses]) + "]"
 
     # ----------------------------------------------------------------------------
-    def trial_procedure_lines(self, ttype, exp):
+    def trial_flow_lines(self, ttype, exp):
 
         step_type_names = [self._step_name(step, ttype) for step in ttype.steps]
 
-        result = []
-
-        result.append('const {}_procedure = '.format(ttype.name))
-        result.append('{')
-        result.append('  timeline: [{}],'.format(", ".join(step_type_names)))
-        result.append('  timeline_variables: {}_data,'.format(ttype.name))
-        result.append('}')
-        result.append('\ntimeline.push({}_procedure);\n'.format(ttype.name))
-
+        result = [
+            'const {}_procedure = '.format(ttype.name),
+            '{',
+            '  timeline: [{}],'.format(", ".join(step_type_names)),
+            '  timeline_variables: {}_data,'.format(ttype.name),
+            '}',
+            '',
+            'timeline.push({}_procedure);\n'.format(ttype.name),
+        ]
         return result
