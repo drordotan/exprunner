@@ -976,6 +976,7 @@ class Parser(object):
 
         return value
     
+    #-----------------------------------------------------------------------------
     def _parse_css_value(self, value, ws_name, col_name, xls_col, xls_line_num):
         temp_col_name = col_name.lower().strip()
         
