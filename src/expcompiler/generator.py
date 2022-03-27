@@ -6,6 +6,8 @@ import os
 import html
 import enum
 
+import json
+
 import expcompiler
 import expcompiler.experiment as expobj
 from expcompiler.parser import _to_str
@@ -22,7 +24,7 @@ class StepType(enum.Enum):
     def __init__(self, js_type):
         self.js_type = js_type
 
-    html_kb_response = 'html-keyboard-response'
+    html_kb_response = 'jsPsychHtmlKeyboardResponse'
     html_mouse_response = 'html-mouse-response'
 
 
@@ -37,6 +39,7 @@ class ExpGenerator(object):
         self.template = self._load_template()
         self.logger = logger
         self.errors_found = False
+        self.trail_col = {}
 
     # ----------------------------------------------------------------------------
     def _load_template(self):
@@ -67,6 +70,7 @@ class ExpGenerator(object):
         script = script.replace('${instructions}', self.generate_instructions_code(exp))
         script = script.replace('${trials}', self.generate_trials_code(exp))
         script = script.replace('${trial_flow}', self.generate_trial_flow_code(exp))
+        script = script.replace('${on_finish}', self.generate_on_finsh_code(exp))
 
         return script
 
@@ -76,6 +80,7 @@ class ExpGenerator(object):
 
     def generate_title_code(self, exp):
         return html.escape(exp.title or '')
+
 
 
     #------------------------------------------------------------
@@ -128,8 +133,8 @@ class ExpGenerator(object):
         text = instruction.text
         response_names = instruction.response_names
 
-        result = self.generate_instruction_type(pos, text, exp)
-        result += self.generate_instruction_flow(exp, pos, response_names)
+        #result = self.generate_instruction_type(pos, text, exp)
+        result = self.generate_instruction_flow(exp, pos, text, response_names)
         return result
 
     # ----------------------------------------------------------------------------
@@ -141,7 +146,7 @@ class ExpGenerator(object):
         return result
 
     # ----------------------------------------------------------------------------
-    def generate_instruction_flow(self, exp, pos, response_names):
+    def generate_instruction_flow(self, exp, pos, text, response_names):
         step_num = 'instruction{}_step = '.format(pos)
         type_name = 'instruction{} = '.format(pos)
         choices = self.step_response_keys(step_num, response_names, type_name, exp)
@@ -149,19 +154,19 @@ class ExpGenerator(object):
         result = """
         const instruction${pos}_step =
         {
-            type: 'html-keyboard-response',
-            stimulus: jsPsych.timelineVariable('instruction${pos}_step'),
-            choices: {},
+            type: jsPsychHtmlKeyboardResponse,
+            stimulus: "<div>${instruction_text}</div>",
+            choices: ${choices},
         }
         
         const instruction${pos}_flow =
         {
-            timeline: [instruction${pos}_step],
-            timeline_variables: instruction${pos}_data,
+            timeline: [instruction${pos}_step]
         }
         
         timeline.push(instruction${pos}_flow);
-        """.replace('${pos}', pos).format(choices)
+        """.replace('${pos}', str(pos)).replace('${choices}', choices).replace('${instruction_text}', text)
+        
 
         return result
 
@@ -185,15 +190,17 @@ class ExpGenerator(object):
     # ----------------------------------------------------------------------------
     def generate_trials(self, exp, trial_type):
         lines = []
+        trial_index = 0
         for trial in exp.trials:
             if trial.trial_type == trial_type:
-                for line in self.generate_trial(trial, exp):
+                trial_index += 1
+                for line in self.generate_trial(trial, trial_index, exp):
                     lines.append(line)
 
         return "\n".join(lines)
 
     # ----------------------------------------------------------------------------
-    def generate_trial(self, trial, exp):
+    def generate_trial(self, trial, trial_index, exp):
         result = []
 
         ttype = exp.trial_types[trial.trial_type]
@@ -211,19 +218,45 @@ class ExpGenerator(object):
 
                 # -- Trial-specific formatting
                 if ctl_name in trial.css:
+                    step_line += " style='"
                     for css_attr, value in trial.css[ctl_name].items():
-                        step_line += " {}='{}'".format(css_attr, _to_str(value))
-
+                        step_line += "{}: {};".format(css_attr, _to_str(value))
+                    step_line += "'"
                 step_line += '>'
 
                 # -- Value of this control.
                 # todo: Probably this would be needed only for TextControl; TBD later
                 if ctl_name in trial.control_values:
-                    step_line += trial.control_values[ctl_name]
+                    step_line += trial.control_values[ctl_name] if trial.control_values[ctl_name] else '' 
 
                 step_line += '</div>'
 
-            step_line += '",'
+            step_line += '", '
+            
+            #indexing will not working when remove null rows
+            #step_line += "trial_index: %s, " % (trial_index)
+
+            if exp.save_results:
+                for col_name in trial.control_values:
+                    step_line += '%s: "%s", ' % (col_name, trial.control_values[col_name] if trial.control_values[col_name] != 'nan' else '')
+                    if col_name not in self.trail_col.keys():
+                        self.trail_col[col_name] = "stim_{}".format(col_name)
+
+                for col_name in trial.save_values:
+                    step_line += '%s: "%s", ' % (col_name, trial.save_values[col_name] if trial.save_values[col_name] != 'nan' else '')
+                    if col_name not in self.trail_col.keys():
+                        self.trail_col[col_name] = "val_{}".format(col_name)
+
+                for layout in trial.css:
+                    for attr in trial.css[layout]:
+                        formate_attr = attr.replace('-', '') 
+                        col_name = layout + "_" + formate_attr
+                        step_line += '%s: "%s", ' % (col_name, trial.css[layout][attr] if trial.css[layout][attr] != 'nan' else '')
+
+                        if col_name not in self.trail_col.keys():
+                            self.trail_col[col_name] = col_name
+                #indexing will not working when remove null rows
+                #self.trail_col["trial_index"] = "trial_index"
             result.append(step_line)
 
             line_prefix = "  "
@@ -268,7 +301,7 @@ class ExpGenerator(object):
             return ""
 
         result.append('const ' + step_name + ' = {')
-        result.append("    type: '{}',".format('' if step_type is None else step_type.js_type))
+        result.append("    type: {},".format('' if step_type is None else step_type.js_type))
         result.append("    stimulus: jsPsych.timelineVariable('{}'), ".format(step_name))
 
         if step_type == StepType.html_kb_response:
@@ -315,7 +348,12 @@ class ExpGenerator(object):
     # ----------------------------------------------------------------------------
     def step_response_keys(self, step_num, step_responses, type_name, exp):
         if step_responses is None:
-            return 'jsPsych.NO_KEYS'
+            return "'NO_KEYS'"
+
+        for resp_key in step_responses:
+
+            if exp.responses[resp_key].key == "ALL_KEYS":
+                return "'ALL_KEYS'"
 
         invalid_resp = [r for r in step_responses if r not in exp.responses]
         if len(invalid_resp) > 0:
@@ -323,11 +361,11 @@ class ExpGenerator(object):
                               .format(type_name, step_num, ",".join(invalid_resp)),
                               'UNDEFINED_RESPONSE')
             self.errors_found = True
-            return 'jsPsych.NO_KEYS'
+            return "'NO_KEYS'"
 
         responses = [exp.responses[r] for r in step_responses]
         if len(responses) == 0:
-            return 'jsPsych.NO_KEYS'
+            return "'NO_KEYS'"
         else:
             return "[" + ", ".join(["'{}'".format(resp.key) for resp in responses]) + "]"
 
@@ -336,13 +374,71 @@ class ExpGenerator(object):
 
         step_type_names = [self._step_name(step, ttype) for step in ttype.steps]
 
+        csv_field = []
+        if exp.save_results:
+            for column in self.trail_col:
+                csv_field.append('%s: jsPsych.timelineVariable("%s")' % (self.trail_col[column], column))
+        
+        jsDataAttr = ""
+        if len(csv_field) > 0:
+            jsDataAttr = "data: {%s}" % ", ".join(csv_field)
+
         result = [
             'const {}_procedure = '.format(ttype.name),
             '{',
             '  timeline: [{}],'.format(", ".join(step_type_names)),
             '  timeline_variables: {}_data,'.format(ttype.name),
+            jsDataAttr,
             '}',
             '',
             'timeline.push({}_procedure);\n'.format(ttype.name),
         ]
         return result
+
+
+    #------------------------------------------------------------
+    # Code to replace the ${on_finish} keyword
+    #------------------------------------------------------------
+
+    def generate_on_finsh_code(self, exp):
+        if not exp.save_results:
+            return ''
+        
+        filter_condidition = ""
+        instructions_indexes = [pos for pos, instruction in enumerate(exp.instructions)]
+        
+        if len(instructions_indexes):
+            filter_condidition = """
+                data = data.filterCustom(function(trial) {
+                    return %s.indexOf(trial.trial_index) == -1 && trial.rt != null;
+                });
+                
+            """ % (json.dumps(instructions_indexes))
+
+        keys_obj = {}
+
+        for response in exp.responses.values():
+            if isinstance(response, expcompiler.experiment.KbResponse):
+                keys_obj[response.key] = response.value
+        
+        js_custom_code = """
+            <keys_val>
+            for (var trial_index = 0; trial_index < data.trials.length; trial_index++) {
+                    <set_keys_val>
+                    data.trials[trial_index].trial_number = trial_index + 1;
+                }
+        """
+
+        if len(keys_obj.values()):
+            js_custom_code = js_custom_code.replace("<keys_val>", "let keys_val = %s;" % (json.dumps(keys_obj))).replace("<set_keys_val>", "data.trials[trial_index].response_value = keys_val[data.trials[trial_index].response];")
+        else:
+            js_custom_code = js_custom_code.replace("<keys_val>", "").replace("<set_keys_val>", "")
+
+        
+        return """
+        on_finish: function() {
+            var data = jsPsych.data.get();
+            %s
+            data.ignore('internal_node_id').ignore('trial_type').ignore('stimulus').localSave('csv', %s);
+        }
+        """ % (filter_condidition + js_custom_code, "'"+ exp.results_filename + "'.replace('${date}', new Date().toISOString().slice(0, 10))")

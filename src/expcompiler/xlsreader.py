@@ -82,7 +82,7 @@ class XlsReader(object):
         if XlsReader.ws_instructions not in self.worksheets:
             return None
 
-        return self._load_worksheet_as_data_frame(XlsReader.ws_instructions, ('text', 'response'), converters=dict(value=_parse_str))
+        return self._load_worksheet_as_data_frame(XlsReader.ws_instructions, ('text', 'responses'), converters=dict(value=_parse_str))
 
     #--------------------------------------------------
     def _load_worksheet_as_data_frame(self, ws_name, expected_col_names=(), converters=None):

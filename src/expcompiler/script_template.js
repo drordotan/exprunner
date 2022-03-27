@@ -3,9 +3,9 @@
   <head>
     <title>${title}</title>
     <meta http-equiv="content-type" content="text/html; charset=UTF-8">
-    <script src="jspsych/jspsych.js"></script>
-    <script src="jspsych/plugins/jspsych-html-keyboard-response.js"></script>
-    <link href="jspsych/css/jspsych.css" rel="stylesheet" type="text/css">
+    <script src="https://unpkg.com/jspsych@7.1.2"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.0"></script>
+    <link href="https://unpkg.com/jspsych@7.1.2/css/jspsych.css" rel="stylesheet" type="text/css" />
 
 	<style>
 ${layout_css}
@@ -16,6 +16,11 @@ ${layout_css}
   <script>
 
     let timeline = [];
+
+    //init jsPsych
+    let jsPsych = initJsPsych({
+      ${on_finish}
+    });
 
 ${instructions}
 
@@ -29,10 +34,7 @@ ${trial_flow}
 
 
     /* start the experiment */
-    jsPsych.init({
-      timeline: timeline,
-${on_finish}
-    });
+    jsPsych.run(timeline);
 
   </script>
 </html>

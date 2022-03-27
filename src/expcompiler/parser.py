@@ -6,6 +6,7 @@ import webcolors
 import re
 from numbers import Number
 import math
+import cssutils
 
 import expcompiler
 
@@ -252,7 +253,6 @@ class Parser(object):
                               format(expcompiler.xlsreader.XlsReader.ws_layout, col_names['layout_name'], xls_line_num, control.name), 'DUPLICATE_CONTROL_NAME')
             self.errors_found = True
             return None
-
         return control
 
 
@@ -293,6 +293,7 @@ class Parser(object):
             elif col_name.lower().startswith(_css_prefix):
                 css_control_name = col_name.lower()[len(_css_prefix):]
                 value = row[col_name]
+                value = self._parse_css_value(_nan_to_none(value), expcompiler.xlsreader.XlsReader.ws_layout, col_name, col_names[col_name], xls_line_num)
                 if not _isempty(value):
                     css[css_control_name] = _to_str(value)
 
@@ -783,8 +784,7 @@ class Parser(object):
             trial = self._parse_trial(exp, row, i+2, data_col_names, save_col_names, formatting_cols, col_names)
             if trial is not None:
                 exp.trials.append(trial)
-
-
+                
     #-----------------------------------------------------------------------------
     def _check_trials_col_names(self, col_names, exp):
 
@@ -889,8 +889,16 @@ class Parser(object):
             if value is None:
                 continue
 
+            value = self._parse_css_value(
+                value,
+                expcompiler.xlsreader.XlsReader.ws_trials,
+                col_name,
+                all_col_names[col_name],
+                xls_line_num
+            )
+
             if control_name in ttype.control_names:
-                trial.add_css(control_name, css_attr, value)
+                trial.add_css(control_name, css_attr, value)      
             else:
                 self.logger.error('Error in worksheet "{}", cell {}{}: Layout item "{}" is inactive for trials of type "{}".'
                                   .format(expcompiler.xlsreader.XlsReader.ws_trials, all_col_names[col_name], xls_line_num, control_name, ttype.name),
@@ -929,7 +937,7 @@ class Parser(object):
 
 
     #-----------------------------------------------------------------------------
-    def _parse_coord(self, value, ws_name, col_name, xls_col, xls_line_num):
+    def _parse_coord(self, value, ws_name, col_name, xls_col, xls_line_num, validate_message=None):
 
         if value is None:
             self.logger.error('Error in worksheet "{}", cell {}{} (column "{}"): Empty value is invalid, '.
@@ -956,12 +964,48 @@ class Parser(object):
 
         m = re.match('^(-?\\d+(\\.\\d+)?)(\\s*)((px)|%)$', value)
         if m is None:
+            validate_error_message = Parser.valid_position
+            if validate_message != None:
+                validate_error_message = validate_message
+
             self.logger.error('Error in worksheet "{}", cell {}{} (column "{}"): The value "{}" is invalid, '.
-                              format(ws_name, xls_col, xls_line_num, col_name, value)+Parser.valid_position,
+                              format(ws_name, xls_col, xls_line_num, col_name, value)+validate_message,
                               'INVALID_COORD')
             self.errors_found = True
             return None
 
+        return value
+    
+    def _parse_css_value(self, value, ws_name, col_name, xls_col, xls_line_num):
+        temp_col_name = col_name.lower().strip()
+        
+        if temp_col_name.find("format:") == -1 or value == None:
+            return value
+        
+        temp_col_name = temp_col_name.replace("format:", "")
+
+        if temp_col_name.find('.') != -1:
+            [className, cssAttr] = temp_col_name.split(".")
+        else:
+            cssAttr = temp_col_name
+
+        
+
+        valid_css_attr = True
+
+        try:
+            if not cssutils.css.Property(cssAttr, value).validate():
+                valid_css_attr = False
+        except:
+            valid_css_attr = False
+        
+        if not valid_css_attr:
+            error_message = "please read more information about how using this css attribute from this link (%s)" % ("https://developer.mozilla.org/en-US/docs/Web/CSS/" + cssAttr)
+            self.logger.error('Error in worksheet "{}", cell {}{} (column "{}"): The value "{}" is invalid, '.
+                            format(ws_name, xls_col, xls_line_num, col_name, value)+error_message,
+                            'INVALID_COORD')
+            self.errors_found = True
+            
         return value
 
 
