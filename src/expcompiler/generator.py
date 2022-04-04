@@ -190,17 +190,15 @@ class ExpGenerator(object):
     # ----------------------------------------------------------------------------
     def generate_trials(self, exp, trial_type):
         lines = []
-        trial_index = 0
         for trial in exp.trials:
             if trial.trial_type == trial_type:
-                trial_index += 1
-                for line in self.generate_trial(trial, trial_index, exp):
+                for line in self.generate_trial(trial, exp):
                     lines.append(line)
 
         return "\n".join(lines)
 
     # ----------------------------------------------------------------------------
-    def generate_trial(self, trial, trial_index, exp):
+    def generate_trial(self, trial, exp):
         result = []
 
         ttype = exp.trial_types[trial.trial_type]
@@ -232,9 +230,6 @@ class ExpGenerator(object):
                 step_line += '</div>'
 
             step_line += '", '
-            
-            #indexing will not working when remove null rows
-            #step_line += "trial_index: %s, " % (trial_index)
 
             if exp.save_results:
                 for col_name in trial.control_values:
@@ -246,17 +241,7 @@ class ExpGenerator(object):
                     step_line += '%s: "%s", ' % (col_name, trial.save_values[col_name] if trial.save_values[col_name] != 'nan' else '')
                     if col_name not in self.trail_col.keys():
                         self.trail_col[col_name] = "val_{}".format(col_name)
-
-                for layout in trial.css:
-                    for attr in trial.css[layout]:
-                        formate_attr = attr.replace('-', '') 
-                        col_name = layout + "_" + formate_attr
-                        step_line += '%s: "%s", ' % (col_name, trial.css[layout][attr] if trial.css[layout][attr] != 'nan' else '')
-
-                        if col_name not in self.trail_col.keys():
-                            self.trail_col[col_name] = col_name
-                #indexing will not working when remove null rows
-                #self.trail_col["trial_index"] = "trial_index"
+                        
             result.append(step_line)
 
             line_prefix = "  "
