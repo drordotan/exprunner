@@ -39,7 +39,7 @@ class ExpGenerator(object):
         self.template = self._load_template()
         self.logger = logger
         self.errors_found = False
-        self.trail_col = {}
+        self.trial_col = {}
 
     # ----------------------------------------------------------------------------
     def _load_template(self):
@@ -64,6 +64,7 @@ class ExpGenerator(object):
             return None
 
         self.errors_found = False
+        self.trial_col = {}
         script = self.template
         script = script.replace('${title}', self.generate_title_code(exp))
         script = script.replace('${layout_css}', self.generate_layout_code(exp))
@@ -80,7 +81,6 @@ class ExpGenerator(object):
 
     def generate_title_code(self, exp):
         return html.escape(exp.title or '')
-
 
 
     #------------------------------------------------------------
@@ -166,7 +166,6 @@ class ExpGenerator(object):
         
         timeline.push(instruction${pos}_flow);
         """.replace('${pos}', str(pos)).replace('${choices}', choices).replace('${instruction_text}', text)
-        
 
         return result
 
@@ -190,15 +189,15 @@ class ExpGenerator(object):
     # ----------------------------------------------------------------------------
     def generate_trials(self, exp, trial_type):
         lines = []
-        for trial in exp.trials:
+        for trial_num, trial in enumerate(exp.trials):
             if trial.trial_type == trial_type:
-                for line in self.generate_trial(trial, exp):
+                for line in self.generate_trial(trial, exp, trial_num):
                     lines.append(line)
 
         return "\n".join(lines)
 
     # ----------------------------------------------------------------------------
-    def generate_trial(self, trial, exp):
+    def generate_trial(self, trial, exp, config_trial_num):
         result = []
 
         ttype = exp.trial_types[trial.trial_type]
@@ -234,13 +233,13 @@ class ExpGenerator(object):
             if exp.save_results:
                 for col_name in trial.control_values:
                     step_line += '%s: "%s", ' % (col_name, trial.control_values[col_name] if trial.control_values[col_name] != 'nan' else '')
-                    if col_name not in self.trail_col.keys():
-                        self.trail_col[col_name] = "stim_{}".format(col_name)
+                    if col_name not in self.trial_col.keys():
+                        self.trial_col[col_name] = "stim_{}".format(col_name)
 
                 for col_name in trial.save_values:
                     step_line += '%s: "%s", ' % (col_name, trial.save_values[col_name] if trial.save_values[col_name] != 'nan' else '')
-                    if col_name not in self.trail_col.keys():
-                        self.trail_col[col_name] = "val_{}".format(col_name)
+                    if col_name not in self.trial_col.keys():
+                        self.trial_col[col_name] = "val_{}".format(col_name)
                         
             result.append(step_line)
 
@@ -361,8 +360,8 @@ class ExpGenerator(object):
 
         csv_field = []
         if exp.save_results:
-            for column in self.trail_col:
-                csv_field.append('%s: jsPsych.timelineVariable("%s")' % (self.trail_col[column], column))
+            for column in self.trial_col:
+                csv_field.append('%s: jsPsych.timelineVariable("%s")'%(self.trial_col[column], column))
         
         jsDataAttr = ""
         if len(csv_field) > 0:
@@ -389,11 +388,11 @@ class ExpGenerator(object):
         if not exp.save_results:
             return ''
         
-        filter_condidition = ""
+        filter_condition = ""
         instructions_indexes = [pos for pos, instruction in enumerate(exp.instructions)]
         
-        if len(instructions_indexes):
-            filter_condidition = """
+        if len(instructions_indexes) > 0:
+            filter_condition = """
                 data = data.filterCustom(function(trial) {
                     return %s.indexOf(trial.trial_index) == -1 && trial.rt != null;
                 });
@@ -426,4 +425,4 @@ class ExpGenerator(object):
             %s
             data.ignore('internal_node_id').ignore('trial_type').ignore('stimulus').localSave('csv', %s);
         }
-        """ % (filter_condidition + js_custom_code, "'"+ exp.results_filename + "'.replace('${date}', new Date().toISOString().slice(0, 10))")
+        """ % (filter_condition + js_custom_code, "'"+ exp.results_filename + "'.replace('${date}', new Date().toISOString().slice(0, 10))")

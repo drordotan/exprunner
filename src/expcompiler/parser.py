@@ -889,13 +889,7 @@ class Parser(object):
             if value is None:
                 continue
 
-            value = self._parse_css_value(
-                value,
-                expcompiler.xlsreader.XlsReader.ws_trials,
-                col_name,
-                all_col_names[col_name],
-                xls_line_num
-            )
+            value = self._parse_css_value(value, expcompiler.xlsreader.XlsReader.ws_trials, col_name, all_col_names[col_name], xls_line_num)
 
             if control_name in ttype.control_names:
                 trial.add_css(control_name, css_attr, value)      
@@ -941,8 +935,8 @@ class Parser(object):
 
         if value is None:
             self.logger.error('Error in worksheet "{}", cell {}{} (column "{}"): Empty value is invalid, '.
-                              format(ws_name, xls_col, xls_line_num, col_name) +
-                              Parser.valid_position, 'EMPTY_COORD')
+                               format(ws_name, xls_col, xls_line_num, col_name) +
+                              'expecting an x/y coordinate (i.e., a number with either "%" or "px" after it)', 'EMPTY_COORD')
             self.errors_found = True
             return None
 
@@ -964,12 +958,11 @@ class Parser(object):
 
         m = re.match('^(-?\\d+(\\.\\d+)?)(\\s*)((px)|%)$', value)
         if m is None:
-            validate_error_message = Parser.valid_position
-            if validate_message != None:
-                validate_error_message = validate_message
+            if validate_message is None:
+                validate_message = 'expecting an x/y coordinate (i.e., a number with either "%" or "px" after it)'
 
             self.logger.error('Error in worksheet "{}", cell {}{} (column "{}"): The value "{}" is invalid, '.
-                              format(ws_name, xls_col, xls_line_num, col_name, value)+validate_message,
+                              format(ws_name, xls_col, xls_line_num, col_name, value) + validate_message,
                               'INVALID_COORD')
             self.errors_found = True
             return None
@@ -978,33 +971,38 @@ class Parser(object):
     
     #-----------------------------------------------------------------------------
     def _parse_css_value(self, value, ws_name, col_name, xls_col, xls_line_num):
+        """
+        Parse a cell with CSS formatting ("format:.....")
+        """
         temp_col_name = col_name.lower().strip()
-        
+
+        # todo drorCR: temp_col_name.startswith("format:")
         if temp_col_name.find("format:") == -1 or value == None:
+            #-- empty value / not a CSS definition
             return value
         
         temp_col_name = temp_col_name.replace("format:", "")
 
         if temp_col_name.find('.') != -1:
-            [className, cssAttr] = temp_col_name.split(".")
+            [_, css_attr] = temp_col_name.split(".")
         else:
-            cssAttr = temp_col_name
-
-        
+            css_attr = temp_col_name
 
         valid_css_attr = True
 
         try:
-            if not cssutils.css.Property(cssAttr, value).validate():
+            # todo drorCR: why not just write
+            # todo drorCR: valid_css_attr = cssutils.css.Property(cssAttr, value).validate():
+            if not cssutils.css.Property(css_attr, value).validate():
                 valid_css_attr = False
         except:
             valid_css_attr = False
         
         if not valid_css_attr:
-            error_message = "please read more information about how using this css attribute from this link (%s)" % ("https://developer.mozilla.org/en-US/docs/Web/CSS/" + cssAttr)
+            error_message = "For more information about using this CSS attribute, see http://developer.mozilla.org/en-US/docs/Web/CSS/" + css_attr
             self.logger.error('Error in worksheet "{}", cell {}{} (column "{}"): The value "{}" is invalid, '.
                             format(ws_name, xls_col, xls_line_num, col_name, value)+error_message,
-                            'INVALID_COORD')
+                            'INVALID_CSS_VALUE')
             self.errors_found = True
             
         return value
