@@ -18,9 +18,7 @@ ${layout_css}
     let timeline = [];
 
     //init jsPsych
-    let jsPsych = initJsPsych({
-      ${on_finish}
-    });
+    ${init_jsPsych}
 
 ${instructions}
 

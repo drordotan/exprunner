@@ -71,7 +71,7 @@ class ExpGenerator(object):
         script = script.replace('${instructions}', self.generate_instructions_code(exp))
         script = script.replace('${trials}', self.generate_trials_code(exp))
         script = script.replace('${trial_flow}', self.generate_trial_flow_code(exp))
-        script = script.replace('${on_finish}', self.generate_on_finsh_code(exp))
+        script = script.replace('${init_jsPsych}', self.generate_on_finsh_code(exp))
 
         return script
 
@@ -189,15 +189,15 @@ class ExpGenerator(object):
     # ----------------------------------------------------------------------------
     def generate_trials(self, exp, trial_type):
         lines = []
-        for trial_num, trial in enumerate(exp.trials):
+        for config_trial_number, trial in enumerate(exp.trials):
             if trial.trial_type == trial_type:
-                for line in self.generate_trial(trial, exp, trial_num):
+                for line in self.generate_trial(trial, exp, config_trial_number):
                     lines.append(line)
 
         return "\n".join(lines)
 
     # ----------------------------------------------------------------------------
-    def generate_trial(self, trial, exp, config_trial_num):
+    def generate_trial(self, trial, exp, config_trial_number):
         result = []
 
         ttype = exp.trial_types[trial.trial_type]
@@ -241,6 +241,9 @@ class ExpGenerator(object):
                     if col_name not in self.trial_col.keys():
                         self.trial_col[col_name] = "val_{}".format(col_name)
                         
+            step_line += '%s: "%s", ' % ("config_trial_number", config_trial_number + 2)
+            self.trial_col["config_trial_number"] = "config_trial_number"
+
             result.append(step_line)
 
             line_prefix = "  "
@@ -385,12 +388,18 @@ class ExpGenerator(object):
     #------------------------------------------------------------
 
     def generate_on_finsh_code(self, exp):
-        if not exp.save_results:
-            return ''
         
+        #if the save results is set N in the sheet in this case we will write the JS code that will init the jspsych library only
+        if not exp.save_results:
+            return """
+            let jsPsych = initJsPsych({})
+            """
+        
+        #find the indexes for the instruction trials
         filter_condition = ""
         instructions_indexes = [pos for pos, instruction in enumerate(exp.instructions)]
         
+        #writing the JS code that will remove the trials that has instruction indexes also we will remove the rows that rt equal null 
         if len(instructions_indexes) > 0:
             filter_condition = """
                 data = data.filterCustom(function(trial) {
@@ -405,6 +414,7 @@ class ExpGenerator(object):
             if isinstance(response, expcompiler.experiment.KbResponse):
                 keys_obj[response.key] = response.value
         
+        #link the pressed keys with values and genarate the JS code that will link the key code with  value from sheet
         js_custom_code = """
             <keys_val>
             for (var trial_index = 0; trial_index < data.trials.length; trial_index++) {
@@ -418,11 +428,33 @@ class ExpGenerator(object):
         else:
             js_custom_code = js_custom_code.replace("<keys_val>", "").replace("<set_keys_val>", "")
 
-        
+        #generate the JS code that will used to create download link and generate the CSV file
         return """
-        on_finish: function() {
+        function generateCSVFile() {
             var data = jsPsych.data.get();
             %s
             data.ignore('internal_node_id').ignore('trial_type').ignore('stimulus').localSave('csv', %s);
         }
+        let jsPsych = initJsPsych({
+            on_finish: function() {
+                generateCSVFile();
+			
+                const downloadLink = document.createElement("a");
+                downloadLink.appendChild(document.createTextNode("Please click here to download again"))
+                downloadLink.href = "#";
+
+                downloadLink.addEventListener("click", function (){
+                    generateCSVFile();
+                });
+                
+                const jspsychContent = document.getElementById("jspsych-content")
+                
+                if (jspsychContent) {
+                    jspsychContent.appendChild(downloadLink);
+                }
+                else {
+                    document.body.prepend(downloadLink);
+                }  
+            }
+        });
         """ % (filter_condition + js_custom_code, "'"+ exp.results_filename + "'.replace('${date}', new Date().toISOString().slice(0, 10))")
