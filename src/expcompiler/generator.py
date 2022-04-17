@@ -25,7 +25,7 @@ class StepType(enum.Enum):
         self.js_type = js_type
 
     html_kb_response = 'jsPsychHtmlKeyboardResponse'
-    html_mouse_response = 'html-mouse-response'
+    html_button_response = 'jsPsychHtmlButtonResponse'
 
 
 #============================================================================================
@@ -149,12 +149,23 @@ class ExpGenerator(object):
     def generate_instruction_flow(self, exp, pos, text, response_names):
         step_num = 'instruction{}_step = '.format(pos)
         type_name = 'instruction{} = '.format(pos)
-        choices = self.step_response_keys(step_num, response_names, type_name, exp)
+
+        step_resposne_type = self.check_response_type(response_names, exp)
+        trial_type_response = "jsPsychHtmlKeyboardResponse"
+        
+        if step_resposne_type is not None and step_resposne_type != False:
+            if step_resposne_type == StepType.html_button_response:
+                trial_type_response = "jsPsychHtmlButtonResponse"
+        
+        if step_resposne_type == StepType.html_button_response:
+            choices = self.step_response_buttons(step_num, response_names, type_name, exp)
+        else:
+            choices = self.step_response_keys(step_num, response_names, type_name, exp)
 
         result = """
         const instruction${pos}_step =
         {
-            type: jsPsychHtmlKeyboardResponse,
+            type: ${response_type},
             stimulus: "<div>${instruction_text}</div>",
             choices: ${choices},
         }
@@ -165,7 +176,7 @@ class ExpGenerator(object):
         }
         
         timeline.push(instruction${pos}_flow);
-        """.replace('${pos}', str(pos)).replace('${choices}', choices).replace('${instruction_text}', text)
+        """.replace('${pos}', str(pos)).replace('${choices}', choices).replace('${instruction_text}', text).replace("${response_type}", trial_type_response)
 
         return result
 
@@ -287,14 +298,32 @@ class ExpGenerator(object):
             self.errors_found = True
             return ""
 
-        result.append('const ' + step_name + ' = {')
-        result.append("    type: {},".format('' if step_type is None else step_type.js_type))
-        result.append("    stimulus: jsPsych.timelineVariable('{}'), ".format(step_name))
+        step_resposne_type = self.check_response_type(step.responses, exp)
 
-        if step_type == StepType.html_kb_response:
-            result.append("    choices: {},".format(self.step_response_keys(step.num, step.responses, ttype.name, exp)))
+        if step_resposne_type is not None and step_resposne_type != False:
+            if step_resposne_type == StepType.html_button_response:
+                trial_type_response = "jsPsychHtmlButtonResponse"
+            else:
+                trial_type_response = "jsPsychHtmlKeyboardResponse"
         else:
-            self.logger('Error in compiler - step type {} not supported'.format(step_type.name))
+            trial_type_response = '' if step_type is None else step_type.js_type
+
+        result.append('const ' + step_name + ' = {')
+        result.append("    type: {},".format(trial_type_response))
+        result.append("    stimulus: jsPsych.timelineVariable('{}'), ".format(step_name))
+        
+        if step_resposne_type == False:
+            self.logger.error(
+                 'Error in trial type {}: step #{} responses column contains multiple types of responses in the same cell, this is invalid the response shoud be either button or key'.format(ttype.name, step.num)
+                 , 'MULTIPLE_CONTROL_TYPES_IN_ONE_STEP')
+            return ""
+
+        if step_resposne_type == StepType.html_kb_response or (step_resposne_type == None and step_type == StepType.html_kb_response):
+            result.append("    choices: {},".format(self.step_response_keys(step.num, step.responses, ttype.name, exp)))
+        elif step_resposne_type == StepType.html_button_response:
+            result.append("    choices: {},".format(self.step_response_buttons(step.num, step.responses, ttype.name, exp)))
+        else:
+            self.logger.error('Error in compiler - step type {} not supported'.format(step_type.name), 'MULTIPLE_CONTROL_TYPES_IN_ONE_STEP')
             self.errors_found = True
             return ""
 
@@ -331,6 +360,43 @@ class ExpGenerator(object):
             self.logger.error('Error: unsupported layout-item type ({})'.format(control_type.__name__),
                               'MULTIPLE_CONTROL_TYPES_IN_ONE_STEP')
             return None
+
+    # ----------------------------------------------------------------------------
+    def check_response_type(self, step_responses, exp):
+        response_type = None
+        
+        if step_responses is None:
+            return None
+
+        for resp_key in step_responses:
+            if response_type is None:
+                if isinstance(exp.responses[resp_key], expcompiler.experiment.KbResponse):
+                    response_type = StepType.html_kb_response
+                else:
+                    response_type = StepType.html_button_response
+            
+            if isinstance(exp.responses[resp_key], expcompiler.experiment.KbResponse) and response_type == StepType.html_button_response:
+                return False
+            elif isinstance(exp.responses[resp_key], expcompiler.experiment.ClickButtonResponse) and response_type == StepType.html_kb_response:
+                return False
+
+        return response_type
+    
+    # ----------------------------------------------------------------------------
+    def step_response_buttons(self, step_num, step_responses, type_name, exp):
+        invalid_resp = [r for r in step_responses if r not in exp.responses]
+        if len(invalid_resp) > 0:
+            self.logger.error('Error in trial type {}: step #{} contains some undefined responses ({})'
+                              .format(type_name, step_num, ",".join(invalid_resp)),
+                              'UNDEFINED_RESPONSE')
+            self.errors_found = True
+            return "[]"
+        
+        responses = [exp.responses[r] for r in step_responses]
+        if len(responses) == 0:
+            return "[]"
+        else:
+            return "[" + ", ".join(["'{}'".format(resp.button_text) for resp in responses]) + "]"
 
     # ----------------------------------------------------------------------------
     def step_response_keys(self, step_num, step_responses, type_name, exp):
@@ -413,6 +479,8 @@ class ExpGenerator(object):
         for response in exp.responses.values():
             if isinstance(response, expcompiler.experiment.KbResponse):
                 keys_obj[response.key] = response.value
+            else:
+                keys_obj[response.button_text] = response.value
         
         #link the pressed keys with values and genarate the JS code that will link the key code with  value from sheet
         js_custom_code = """
