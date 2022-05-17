@@ -39,7 +39,7 @@ class XlsReader(object):
         if not os.path.exists(self._filename):
             raise ValueError("Config file does not exist ({})".format(self._filename))
 
-        wb = openpyxl.open(self._filename, read_only=True)
+        wb = openpyxl.load_workbook(self._filename, read_only=True)
         self.worksheets = {ws.title for ws in wb.worksheets}
 
         all_ws_names = XlsReader.ws_general, XlsReader.ws_trial_type, XlsReader.ws_layout, XlsReader.ws_response, XlsReader.ws_trials
