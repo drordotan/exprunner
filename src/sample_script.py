@@ -1,6 +1,7 @@
 import sys
 import expcompiler.parser
 
-rc = expcompiler.compile.compile_exp('config_recent_probes_sample1.xlsx', "result.html")
+d='/Users/dror/data/assessment-tests/numbers/MIM-v5/prepapre/איפה האפס/'
+rc = expcompiler.compile.compile_exp(d+'where-is-0-demo-config.xlsx', d+"where_is_the_zero-generated.html")
 
 sys.exit(rc)
