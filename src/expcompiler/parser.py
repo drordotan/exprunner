@@ -405,7 +405,7 @@ class Parser(object):
                                   format(expcompiler.xlsreader.XlsReader.ws_response), 'MISSING_BUTTON_RESPONSE_TEXT_COL')
                 self.errors_found = True
         else:
-            text = row.text
+            text = '' if _isempty(row.text) else row.text
 
         #todo x, y coordinates - possible?
 
@@ -572,8 +572,9 @@ class Parser(object):
 
         type_name = self._parse_trial_type(row, last_type_name, xls_line_num, col_names)
         step_num = self._step_num(exp, type_name)
-        control_names = self._parse_trial_type_control_names(exp, row, xls_line_num, col_names)
         response_names = self._parse_trial_type_responses(exp, row, xls_line_num, col_names)
+        responses_defined = response_names is not None and len(response_names) > 0
+        control_names = self._parse_trial_type_control_names(exp, row, xls_line_num, col_names, responses_defined)
 
         duration = self._parse_positive_float(row, 'duration', col_names, expcompiler.xlsreader.XlsReader.ws_trial_type,
                                               xls_line_num, mandatory=False, default_value=None, zero_allowed=False)
@@ -582,7 +583,6 @@ class Parser(object):
         delay_after = self._parse_positive_float(row, 'delay-after', col_names,  expcompiler.xlsreader.XlsReader.ws_trial_type,
                                                  xls_line_num, mandatory=False, default_value=0, zero_allowed=True)
 
-        responses_defined = response_names is not None and len(response_names) > 0
         if not responses_defined and duration is None:
             self.logger.error('Error in worksheet "{}", line {}: An unlimited-time step without response is invalid. Either "duration" or "responses" must be defined.'
                               .format(expcompiler.xlsreader.XlsReader.ws_trial_type, xls_line_num),
@@ -643,13 +643,14 @@ class Parser(object):
 
 
     #-----------------------------------------------------------------------------
-    def _parse_trial_type_control_names(self, exp, row, xls_line_num, col_names):
+    def _parse_trial_type_control_names(self, exp, row, xls_line_num, col_names, has_responses):
 
         layout_str = row['layout items']
         if _isempty(layout_str):
-            self.logger.error('Warning in worksheet "{}", cell {}{}: No value was specified in the "layout items" column.'
-                              .format(expcompiler.xlsreader.XlsReader.ws_trial_type, col_names['layout items'], xls_line_num), 'TRIAL_TYPE_NO_FIELDS')
-            self.errors_found = True
+            if not has_responses:
+                self.logger.error('Warning in worksheet "{}", cell {}{}: If this step has no responses, you must specify something in the "layout items" column. '
+                                  .format(expcompiler.xlsreader.XlsReader.ws_trial_type, col_names['layout items'], xls_line_num), 'TRIAL_TYPE_NO_FIELDS')
+                self.errors_found = True
             return ()
         else:
             control_names = [f.strip() for f in layout_str.split(",")]
@@ -988,13 +989,10 @@ class Parser(object):
         else:
             css_attr = temp_col_name
 
-        valid_css_attr = True
-
         try:
-            # todo drorCR: why not just write
-            # todo drorCR: valid_css_attr = cssutils.css.Property(cssAttr, value).validate():
-            if not cssutils.css.Property(css_attr, value).validate():
-                valid_css_attr = False
+            css_property = cssutils.css.Property(css_attr, value)
+            css_property._log.enabled = False
+            valid_css_attr = css_property.validate()
         except:
             valid_css_attr = False
         

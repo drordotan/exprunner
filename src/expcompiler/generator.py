@@ -346,14 +346,14 @@ class ExpGenerator(object):
         :return: StepType
         """
         control_types = {type(exp.layout[c]) for c in step.control_names}
-        if len(control_types) != 1:
+        if len(control_types) > 1:
             type_names = ", ".join([t.__name__ for t in control_types])
             self.logger.error(
                 'Error in trial type {}: step #{} contains layout items of several types ({}), this is invalid'
                 .format(ttype.name, step.num, type_names), 'MULTIPLE_CONTROL_TYPES_IN_ONE_STEP')
             return None
 
-        control_type = list(control_types)[0]
+        control_type = expobj.TextControl if len(control_types) == 0 else list(control_types)[0]
         if control_type == expobj.TextControl:
             return StepType.html_kb_response
         else:
