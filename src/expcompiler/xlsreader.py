@@ -93,7 +93,7 @@ class XlsReader(object):
                 self.logger.error('Invalid format in worksheet "{}": Column "{}" is missing'.format(ws_name, col_name),
                                   'MISSING_COL(sheet={})'.format(XlsReader.ws_general))
         for col_name in df:
-            df[col_name] = fix_int(df[col_name])
+            df[col_name] = [fix_value(v) for v in df[col_name]]
 
         return df if ok else None
 
@@ -153,8 +153,11 @@ def _nan_to_none(value):
 def _parse_str(value):
     return None if _isnan(value) else str(value)
 
-def fix_int(value):
-    if isinstance(value, float) and not math.isnan(value) and int(value) == value:
-        return int(value)
-    else:
-        return value
+def fix_value(value):
+    if isinstance(value, float):
+        if math.isnan(value):
+            return ''
+        elif int(value) == value:
+            return int(value)
+
+    return value
