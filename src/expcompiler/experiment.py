@@ -31,6 +31,8 @@ class Experiment(object):
         self.title = title
         self.instructions = [] if instructions is None else list(instructions)
 
+        self.save_steps_without_responses = False
+
         self.layout = {}        # Layout items (controls), key = name
         self.trial_types = {}   # key = name, value = TrialType
         self.responses = {}     # key = name, value = Response

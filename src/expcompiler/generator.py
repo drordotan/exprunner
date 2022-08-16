@@ -5,6 +5,7 @@ Generate the experiment script
 import os
 import html
 import enum
+import numbers
 
 import json
 
@@ -71,9 +72,20 @@ class ExpGenerator(object):
         script = script.replace('${instructions}', self.generate_instructions_code(exp))
         script = script.replace('${trials}', self.generate_trials_code(exp))
         script = script.replace('${trial_flow}', self.generate_trial_flow_code(exp))
-        script = script.replace('${init_jsPsych}', self.generate_on_finsh_code(exp))
+        script = script.replace('${filter_trials_func}', self.generate_filter_trials_func(exp))
+        script = script.replace('${init_jspsych_params}', self.generate_init_jspysch_params(exp))
+        script = script.replace('${results_filename}', self.generate_results_file_name(exp))
 
         return script
+
+
+    #------------------------------------------------------------
+    #  Code replacing the ${results_filename} keyword
+    #------------------------------------------------------------
+
+    def generate_results_file_name(self, exp):
+        return "'"+exp.results_filename+"'.replace('${date}', new Date().toISOString().slice(0, 10))"
+
 
     #------------------------------------------------------------
     #  Code replacing the ${title} keyword
@@ -158,9 +170,11 @@ class ExpGenerator(object):
                 trial_type_response = "jsPsychHtmlButtonResponse"
         
         if step_resposne_type == StepType.html_button_response:
-            choices = self.step_response_buttons(step_num, response_names, type_name, exp)
+            choices = self.gen_choices_for_button_response_step(step_num, response_names, type_name, exp)
         else:
             choices = self.step_response_keys(step_num, response_names, type_name, exp)
+
+        text = text.replace('\n', '<p>').replace('"', '\\"')
 
         result = """
         const instruction${pos}_step =
@@ -314,14 +328,20 @@ class ExpGenerator(object):
         
         if step_resposne_type == False:
             self.logger.error(
-                 'Error in trial type {}: step #{} responses column contains multiple types of responses in the same cell, this is invalid the response shoud be either button or key'.format(ttype.name, step.num)
-                 , 'MULTIPLE_CONTROL_TYPES_IN_ONE_STEP')
+                 'Error in trial type {}: step #{} responses column contains multiple response types. '.format(ttype.name, step.num) +
+                 'This is invalid - the response shoud be either buttons or keys.',
+                 'MULTIPLE_CONTROL_TYPES_IN_ONE_STEP')
             return ""
 
         if step_resposne_type == StepType.html_kb_response or (step_resposne_type == None and step_type == StepType.html_kb_response):
             result.append("    choices: {},".format(self.step_response_keys(step.num, step.responses, ttype.name, exp)))
+
         elif step_resposne_type == StepType.html_button_response:
-            result.append("    choices: {},".format(self.step_response_buttons(step.num, step.responses, ttype.name, exp)))
+            result.append("    choices: {},".format(self.gen_choices_for_button_response_step(step.num, step.responses, ttype.name, exp)))
+            result.append("    on_finish: function(data) {")
+            result.extend(["       " + line for line in self.gen_button_response_step_on_finish_func(step, exp)])
+            result.append("    },")
+
         else:
             self.logger.error('Error in compiler - step type {} not supported'.format(step_type.name), 'MULTIPLE_CONTROL_TYPES_IN_ONE_STEP')
             self.errors_found = True
@@ -363,27 +383,36 @@ class ExpGenerator(object):
 
     # ----------------------------------------------------------------------------
     def check_response_type(self, step_responses, exp):
-        response_type = None
-        
+        """
+        Get the response type for this step
+        Return False if response type is inconsistent, None if there is no response
+        """
+
         if step_responses is None:
             return None
 
+        response_type = None
+
         for resp_key in step_responses:
-            if response_type is None:
-                if isinstance(exp.responses[resp_key], expcompiler.experiment.KbResponse):
-                    response_type = StepType.html_kb_response
-                else:
-                    response_type = StepType.html_button_response
-            
-            if isinstance(exp.responses[resp_key], expcompiler.experiment.KbResponse) and response_type == StepType.html_button_response:
+            if resp_key not in exp.responses:
+                continue
+
+            if isinstance(exp.responses[resp_key], expcompiler.experiment.KbResponse):
+                curr_response_type = StepType.html_kb_response
+            elif isinstance(exp.responses[resp_key], expcompiler.experiment.ClickButtonResponse):
+                curr_response_type = StepType.html_button_response
+            else:
+                curr_response_type = None
+
+            if response_type is not None and response_type != curr_response_type:
                 return False
-            elif isinstance(exp.responses[resp_key], expcompiler.experiment.ClickButtonResponse) and response_type == StepType.html_kb_response:
-                return False
+
+            response_type = curr_response_type
 
         return response_type
     
     # ----------------------------------------------------------------------------
-    def step_response_buttons(self, step_num, step_responses, type_name, exp):
+    def gen_choices_for_button_response_step(self, step_num, step_responses, type_name, exp):
         invalid_resp = [r for r in step_responses if r not in exp.responses]
         if len(invalid_resp) > 0:
             self.logger.error('Error in trial type {}: step #{} contains some undefined responses ({})'
@@ -399,7 +428,20 @@ class ExpGenerator(object):
             return "[" + ", ".join(["'{}'".format(resp.button_text) for resp in responses]) + "]"
 
     # ----------------------------------------------------------------------------
+    def gen_button_response_step_on_finish_func(self, step, exp):
+        responses = [exp.responses[r] if r in exp.responses else None for r in step.responses]
+        if None in responses:
+            return []
+
+        values = [_format_value_to_js(r.value) for r in responses if isinstance(r, expcompiler.experiment.ClickButtonResponse)]
+        return [
+            "response_values = [{}];".format(", ".join(values)),
+            "data.response_value = response_values[data.response];",
+        ]
+
+    # ----------------------------------------------------------------------------
     def step_response_keys(self, step_num, step_responses, type_name, exp):
+
         if step_responses is None:
             return "'NO_KEYS'"
 
@@ -424,6 +466,7 @@ class ExpGenerator(object):
 
     # ----------------------------------------------------------------------------
     def trial_flow_lines(self, ttype, exp):
+        """ Generate the code part describing the full trial flow of a given trial type """
 
         step_type_names = [self._step_name(step, ttype) for step in ttype.steps]
 
@@ -450,79 +493,45 @@ class ExpGenerator(object):
 
 
     #------------------------------------------------------------
-    # Code to replace the ${on_finish} keyword
+    # Code to replace the ${filter_trials_func} keyword
     #------------------------------------------------------------
 
-    def generate_on_finsh_code(self, exp):
-        
-        #if the save results is set N in the sheet in this case we will write the JS code that will init the jspsych library only
-        if not exp.save_results:
-            return """
-            let jsPsych = initJsPsych({})
-            """
-        
-        #find the indexes for the instruction trials
-        filter_condition = ""
+    def generate_filter_trials_func(self, exp):
+
+        result = []
+
+        #-- Remove instruction trials
         instructions_indexes = [pos for pos, instruction in enumerate(exp.instructions)]
-        
-        #writing the JS code that will remove the trials that has instruction indexes also we will remove the rows that rt equal null 
         if len(instructions_indexes) > 0:
-            filter_condition = """
-                data = data.filterCustom(function(trial) {
-                    return %s.indexOf(trial.trial_index) == -1 && trial.rt != null;
-                });
-                
-            """ % (json.dumps(instructions_indexes))
+            result.append("if ({}.indexOf(trial.trial_index) != -1) {{".format(json.dumps(instructions_indexes)))
+            result.append("   return false;")
+            result.append("}")
 
-        keys_obj = {}
+        #-- Remove trials without response
+        if not exp.save_steps_without_responses:
+            result.append("if (trial.rt == null) {")
+            result.append("   return false;")
+            result.append("}")
 
-        for response in exp.responses.values():
-            if isinstance(response, expcompiler.experiment.KbResponse):
-                keys_obj[response.key] = response.value
-            else:
-                keys_obj[response.button_text] = response.value
-        
-        #link the pressed keys with values and genarate the JS code that will link the key code with  value from sheet
-        js_custom_code = """
-            <keys_val>
-            for (var trial_index = 0; trial_index < data.trials.length; trial_index++) {
-                    <set_keys_val>
-                    data.trials[trial_index].trial_number = trial_index + 1;
-                }
-        """
+        result.append("return true;")
 
-        if len(keys_obj.values()):
-            js_custom_code = js_custom_code.replace("<keys_val>", "let keys_val = %s;" % (json.dumps(keys_obj))).replace("<set_keys_val>", "data.trials[trial_index].response_value = keys_val[data.trials[trial_index].response];")
+        return '\n'.join('                ' + line for line in result)
+
+
+    #------------------------------------------------------------
+    # Code to replace the ${init_jspsych_params} keyword
+    #------------------------------------------------------------
+
+    def generate_init_jspysch_params(self, exp):
+
+        if exp.save_results:
+            return "{on_finish: on_jspsych_finish}"
         else:
-            js_custom_code = js_custom_code.replace("<keys_val>", "").replace("<set_keys_val>", "")
+            return "{}"
 
-        #generate the JS code that will used to create download link and generate the CSV file
-        return """
-        function generateCSVFile() {
-            var data = jsPsych.data.get();
-            %s
-            data.ignore('internal_node_id').ignore('trial_type').ignore('stimulus').localSave('csv', %s);
-        }
-        let jsPsych = initJsPsych({
-            on_finish: function() {
-                generateCSVFile();
-			
-                const downloadLink = document.createElement("a");
-                downloadLink.appendChild(document.createTextNode("Please click here to download again"))
-                downloadLink.href = "#";
 
-                downloadLink.addEventListener("click", function (){
-                    generateCSVFile();
-                });
-                
-                const jspsychContent = document.getElementById("jspsych-content")
-                
-                if (jspsychContent) {
-                    jspsychContent.appendChild(downloadLink);
-                }
-                else {
-                    document.body.prepend(downloadLink);
-                }  
-            }
-        });
-        """ % (filter_condition + js_custom_code, "'"+ exp.results_filename + "'.replace('${date}', new Date().toISOString().slice(0, 10))")
+def _format_value_to_js(value):
+    if isinstance(value, numbers.Number):
+        return str(value)
+    else:
+        return "'{}'".format(value)

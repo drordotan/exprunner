@@ -16,10 +16,49 @@ ${layout_css}
 
   <script>
 
-    let timeline = [];
+        //------------------------
+        //-- initialize jsPsych --
+        //------------------------
 
-    //init jsPsych
-    ${init_jsPsych}
+        // Code for saving results in case this is needed
+
+        function generateCSVFile() {
+            var data = jsPsych.data.get();
+            data = data.filterCustom(function(trial) {
+${filter_trials_func};
+            });
+            results_filename = ${results_filename};
+            data.response_raw = data.response
+            data.ignore('internal_node_id').ignore('trial_type').ignore('stimulus').ignore('response').localSave('csv', results_filename);
+        }
+
+        function on_jspsych_finish() {
+            generateCSVFile();
+
+            const downloadLink = document.createElement("a");
+            downloadLink.appendChild(document.createTextNode("Click here to re-download the results."))
+            downloadLink.href = "#";
+
+            downloadLink.addEventListener("click", generateCSVFile);
+
+            const jspsychContent = document.getElementById("jspsych-content")
+
+            if (jspsychContent) {
+                jspsychContent.appendChild(downloadLink);
+            }
+            else {
+                document.body.prepend(downloadLink);
+            }
+        }
+
+        let jsPsych = initJsPsych(${init_jspsych_params});
+
+
+        //--------------------------------
+        //-- Create experiment timeline --
+        //--------------------------------
+
+        let timeline = [];
 
 ${instructions}
 
@@ -30,10 +69,11 @@ ${trials}
 ${trial_flow}
 
 
+        //---------------------------
+        //-- Start the experiment! --
+        //---------------------------
 
-
-    /* start the experiment */
-    jsPsych.run(timeline);
+        jsPsych.run(timeline);
 
   </script>
 </html>
