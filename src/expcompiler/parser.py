@@ -589,6 +589,12 @@ class Parser(object):
                               'MUST_DEFINE_RESPONSE_OR_DURATION')
             self.errors_found = True
 
+        if delay_after is not None and 0 < delay_after <= 3:
+            self.logger.error('Warning in worksheet "{}" in {}{}: the specified post-trial delay ({}) is very small. '
+                              .format(expcompiler.xlsreader.XlsReader.ws_trial_type, col_names['delay-after'], xls_line_num, delay_after) +
+                              'Note that this value should be specified in milliseconds.',
+                              'WARN_POST_TRIAL_DELAY_SMALL')
+
         if type_name is None or control_names is None:
             step = None
         else:

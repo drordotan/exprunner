@@ -350,6 +350,9 @@ class ExpGenerator(object):
         if step.duration is not None:
             result.append("    trial_duration: {},".format(_to_str(step.duration)))
 
+        if step.delay_after is not None:
+            result.append("    post_trial_gap: {},".format(_to_str(step.duration)))
+
         result.append('}')
 
         return result
