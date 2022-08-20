@@ -40,7 +40,6 @@ class ExpGenerator(object):
         self.template = self._load_template()
         self.logger = logger
         self.errors_found = False
-        self.trial_col = {}
 
     # ----------------------------------------------------------------------------
     def _load_template(self):
@@ -65,7 +64,6 @@ class ExpGenerator(object):
             return None
 
         self.errors_found = False
-        self.trial_col = {}
         script = self.template
         script = script.replace('${title}', self.generate_title_code(exp))
         script = script.replace('${layout_css}', self.generate_layout_code(exp))
@@ -244,84 +242,92 @@ class ExpGenerator(object):
     #  Code replacing the ${trials} keyword
     #------------------------------------------------------------
 
-    #----------------------------------------------------------------------------
+    # ----------------------------------------------------------------------------
     def generate_trials_code(self, exp):
-        lines = []
-        for trial_type in exp.trial_types:
-            lines.append(self.generate_trial_type(trial_type, exp))
-        return "\n".join(lines)
+        """
+        Generate an array with the data for each trial
+        """
+        lines = ['const trial_data = [']
 
-    # ----------------------------------------------------------------------------
-    def generate_trial_type(self, trial_type, exp):
-        result = "const {}_data = [\n".format(trial_type)
-        result += self.generate_trials(exp, trial_type) + "\n]\n"
-        return result
-
-    # ----------------------------------------------------------------------------
-    def generate_trials(self, exp, trial_type):
-        lines = []
         for config_trial_number, trial in enumerate(exp.trials):
-            if trial.trial_type == trial_type:
-                for line in self.generate_trial(trial, exp, config_trial_number):
-                    lines.append(line)
+            lines.extend(self.generate_one_trial_data(trial, exp, config_trial_number))
+
+        lines.append('];')
 
         return "\n".join(lines)
 
-    # ----------------------------------------------------------------------------
-    def generate_trial(self, trial, exp, config_trial_number):
+
+    #----------------------------------------------------------------------------
+    def generate_one_trial_data(self, trial, exp, config_trial_number):
+
         result = []
 
         ttype = exp.trial_types[trial.trial_type]
-        line_prefix = "{ "
 
-        for step in ttype.steps:
+        for i_step, step in enumerate(ttype.steps):
 
-            step_line = '{}{}: "'.format(line_prefix, self._step_name(step, ttype))
+            #-- Generate the HTML text for all controls of this step (one <div> for each control)
+            controls_html = ''.join([self._one_control_html(ctl_name, trial) for ctl_name in sorted(step.control_names)])
 
-            # -- Add one <div> for each control
-            for ctl_name in sorted(step.control_names):
-
-                # -- <div> definition
-                step_line += '<div class='.format(line_prefix, ctl_name) + "'" + ctl_name + "'"
-
-                # -- Trial-specific formatting
-                if ctl_name in trial.css:
-                    step_line += " style='"
-                    for css_attr, value in trial.css[ctl_name].items():
-                        step_line += "{}: {};".format(css_attr, _to_str(value))
-                    step_line += "'"
-                step_line += '>'
-
-                # -- Value of this control.
-                # todo: Probably this would be needed only for TextControl; TBD later
-                if ctl_name in trial.control_values:
-                    step_line += trial.control_values[ctl_name] if trial.control_values[ctl_name] else '' 
-
-                step_line += '</div>'
-
-            step_line += '", '
+            step_line = '{ ' if i_step == 0 else '  '
+            step_line += '{}: "{}", '.format(self._step_name(step, ttype), controls_html)
 
             if exp.save_results:
-                for col_name in trial.control_values:
-                    step_line += '%s: "%s", ' % (col_name, trial.control_values[col_name] if trial.control_values[col_name] != 'nan' else '')
-                    if col_name not in self.trial_col.keys():
-                        self.trial_col[col_name] = "stim_{}".format(col_name)
 
-                for col_name in trial.save_values:
-                    step_line += '%s: "%s", ' % (col_name, trial.save_values[col_name] if trial.save_values[col_name] != 'nan' else '')
-                    if col_name not in self.trial_col.keys():
-                        self.trial_col[col_name] = "val_{}".format(col_name)
-                        
-            step_line += '%s: "%s", ' % ("config_trial_number", config_trial_number + 2)
-            self.trial_col["config_trial_number"] = "config_trial_number"
+                save_values = {'stim_' + k: ('' if v == 'nan' else v) for k, v in trial.control_values.items()}
+                save_values.update({'val_' + k: ('' if v == 'nan' else v) for k, v in trial.save_values.items()})
+
+                save_html = ['{}: "{}", '.format(k, v) for k, v in save_values.items()]
+                step_line += ''.join(save_html)
+
+            step_line += 'config_trial_number: "{}", '.format(config_trial_number + 2)
 
             result.append(step_line)
 
-            line_prefix = "  "
-
         result[-1] += " }, "
 
-        return [(" " * 8) + r for r in result]
+        return [tabs(2) + r for r in result]
+
+
+    #----------------------------------------------------------------------------
+    def saved_data_custom_cols(self, exp):
+
+        result = dict(config_trial_number='config_trial_number')
+
+        for trial in exp.trials:
+
+            for k in trial.control_values.keys():
+                result[k] = 'stim_' + k
+
+            for k in trial.save_values.keys():
+                result[k] = 'val_' + k
+
+        return result
+
+
+    #----------------------------------------------------------------------------
+    def _one_control_html(self, ctl_name, trial):
+        """
+        Generate the HTML code (<div>) for a single control in one trial
+        """
+
+        html_of_css = self._generate_css_style_html_attr(trial.css[ctl_name]) if ctl_name in trial.css else ''
+        ctl_value = trial.control_values[ctl_name] if ctl_name in trial.control_values else ''
+        html = "<div class='{}'{}>{}</div>".format(ctl_name, html_of_css, ctl_value)
+        return html
+
+
+    #----------------------------------------------------------------------------
+    def _generate_css_style_html_attr(self, css_attrs):
+
+        if len(css_attrs) == 0:
+            return ''
+
+        result = " style='"
+        for css_attr, value in css_attrs.items():
+            result += "{}: {};".format(css_attr, _to_str(value))
+        return result + "'"
+
 
     # ------------------------------------------------------------
     #  Code replacing the ${trial_flow} keyword
@@ -530,25 +536,25 @@ class ExpGenerator(object):
 
         step_type_names = [self._step_name(step, ttype) for step in ttype.steps]
 
-        csv_field = []
-        if exp.save_results:
-            for column in self.trial_col:
-                csv_field.append('%s: jsPsych.timelineVariable("%s")'%(self.trial_col[column], column))
-        
-        js_data_attr = ""
-        if len(csv_field) > 0:
-            js_data_attr = "data: {%s}" % ", ".join(csv_field)
-
         result = [
             'const {}_procedure = '.format(ttype.name),
             '{',
-            '  timeline: [{}],'.format(", ".join(step_type_names)),
-            '  timeline_variables: {}_data,'.format(ttype.name),
-            js_data_attr,
+            tabs(1) + 'timeline: [{}],'.format(", ".join(step_type_names)),
+            tabs(1) + 'timeline_variables: trial_data,']
+
+        saved_data_col_names = self.saved_data_custom_cols(exp)
+        if len(saved_data_col_names) > 0:
+            result.append(tabs(1) + 'data: {')
+            for column in saved_data_col_names:
+                result.append(tabs(2) + '{}: jsPsych.timelineVariable("{}"),'.format(column, saved_data_col_names[column]))
+            result.append(tabs(1) + '},')
+
+        result.extend([
             '}',
             '',
             'timeline.push({}_procedure);\n'.format(ttype.name),
-        ]
+        ])
+
         return result
 
 
