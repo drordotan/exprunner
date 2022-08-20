@@ -143,6 +143,9 @@ class ExpGenerator(object):
         if frame.height is not None:
             result.append('height: {};'.format(frame.height))
 
+        if frame.border_color is not None:
+            result.append('border-color: {};'.format(frame.border_color))
+
         return result
 
 

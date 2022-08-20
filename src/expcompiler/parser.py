@@ -241,7 +241,8 @@ class Parser(object):
         control_type = str(row['type']).lower()
 
         if control_type == 'text':
-            control = self._parse_text_control(control_name, row, xls_line_num, existing_cols_to_letter_mapping)
+            control = self._parse_text_control(control_name, row, xls_line_num, existing_cols_to_letter_mapping,
+                                               expcompiler.xlsreader.XlsReader.ws_layout)
 
         else:
             self.logger.error('Error in worksheet "{}", cell {}{}: type="{}" is unknown, only "text" is supported'.
@@ -252,7 +253,8 @@ class Parser(object):
 
         if control.name.lower() in [k.lower() for k in exp.layout.keys()]:
             self.logger.error('Error in worksheet "{}", cell {}{}: a layout item named "{}" was already defined in a previous line. This line was ignored.'.
-                              format(expcompiler.xlsreader.XlsReader.ws_layout, existing_cols_to_letter_mapping['layout_name'], xls_line_num, control.name), 'DUPLICATE_CONTROL_NAME')
+                              format(expcompiler.xlsreader.XlsReader.ws_layout, existing_cols_to_letter_mapping['layout_name'], xls_line_num, control.name),
+                              'DUPLICATE_CONTROL_NAME')
             self.errors_found = True
             return None
         return control
@@ -264,15 +266,16 @@ class Parser(object):
             return
 
         self.logger.error('Error in worksheet "{}", cell {}{}: layout item name "{}" is invalid - only letters, digits, and _ are allowed in the name.'.
-                          format(expcompiler.xlsreader.XlsReader.ws_layout, existing_cols_to_letter_mapping['layout_name'], xls_line_num, control_name), 'INVALID_CONTROL_NAME')
+                          format(expcompiler.xlsreader.XlsReader.ws_layout, existing_cols_to_letter_mapping['layout_name'], xls_line_num, control_name),
+                          'INVALID_CONTROL_NAME')
         self.errors_found = True
 
     #-----------------------------------------------------------------------------
-    def _parse_text_control(self, control_name, row, xls_line_num, existing_cols_to_letter_mapping):
+    def _parse_text_control(self, control_name, row, xls_line_num, existing_cols_to_letter_mapping, ws_name):
 
         text = ""
 
-        frame, frame_cols = self._parse_frame(row, xls_line_num, existing_cols_to_letter_mapping)
+        frame, frame_cols = self._parse_frame(row, xls_line_num, existing_cols_to_letter_mapping, ws_name)
         css, css_cols = self.parse_css(row, xls_line_num, existing_cols_to_letter_mapping)
 
         for col_name in row.index:
@@ -291,7 +294,7 @@ class Parser(object):
 
 
     #-----------------------------------------------------------------------------
-    def _parse_frame(self, row, xls_line_num, existing_cols_to_letter_mapping):
+    def _parse_frame(self, row, xls_line_num, existing_cols_to_letter_mapping, ws_name):
 
         col_names_nocase_to_case = {col_name.lower(): col_name for col_name in row.index}
         found_cols = []
@@ -309,7 +312,18 @@ class Parser(object):
             else:
                 coord_attrs[attr] = None
 
-        return expcompiler.experiment.Frame(coord_attrs['left'], coord_attrs['top'], coord_attrs['width'], coord_attrs['height']), tuple(found_cols)
+        border_color = None
+        if 'border-color' in col_names_nocase_to_case:
+            border_color = _nan_to_none(row['border-color'])
+            if border_color is not None:
+                self._validate_css_attr_value('border-color', border_color, ws_name,
+                                              existing_cols_to_letter_mapping[col_names_nocase_to_case['border-color']],
+                                              xls_line_num, 'border-color')
+                found_cols.append('border-color')
+
+        frame = expcompiler.experiment.Frame(coord_attrs['left'], coord_attrs['top'], coord_attrs['width'], coord_attrs['height'],
+                                             border_color)
+        return frame, tuple(found_cols)
 
 
     #-----------------------------------------------------------------------------
@@ -380,7 +394,8 @@ class Parser(object):
             resp = self._parse_key_response(row, resp_id, value, response_keys, xls_line_num, existing_cols_to_letter_mapping)
 
         elif resp_type == 'button':
-            resp = self._parse_button_response(row, resp_id, value, xls_line_num, existing_cols_to_letter_mapping)
+            resp = self._parse_button_response(row, resp_id, value, xls_line_num, existing_cols_to_letter_mapping,
+                                               expcompiler.xlsreader.XlsReader.ws_response)
 
         else:
             self.logger.error('Error in worksheet "{}", cell {}{}: type="{}" is unknown, only "key" and "button" are supported'.
@@ -430,7 +445,7 @@ class Parser(object):
 
 
     #-----------------------------------------------------------------------------
-    def _parse_button_response(self, row, resp_id, value, xls_line_num, existing_cols_to_letter_mapping):
+    def _parse_button_response(self, row, resp_id, value, xls_line_num, existing_cols_to_letter_mapping, ws_name):
 
         if 'text' not in existing_cols_to_letter_mapping:
             text = 'N/A'
@@ -441,7 +456,7 @@ class Parser(object):
         else:
             text = '' if _isempty(row.text) else row.text
 
-        frame, frame_cols = self._parse_frame(row, xls_line_num, existing_cols_to_letter_mapping)
+        frame, frame_cols = self._parse_frame(row, xls_line_num, existing_cols_to_letter_mapping, ws_name)
 
         return expcompiler.experiment.ClickButtonResponse(resp_id, value, text, None if len(frame_cols) == 0 else frame)
 
@@ -1052,21 +1067,27 @@ class Parser(object):
         else:
             css_attr = temp_col_name
 
+        self._validate_css_attr_value(css_attr, value, ws_name, xls_col, xls_line_num, col_name)
+
+        return value
+
+
+    #-----------------------------------------------------------------------------
+    def _validate_css_attr_value(self, css_attr, value, ws_name, xls_col, xls_line_num, col_name):
+
         try:
             css_property = cssutils.css.Property(css_attr, value)
             css_property._log.enabled = False
             valid_css_attr = css_property.validate()
         except:
             valid_css_attr = False
-        
+
         if not valid_css_attr:
-            error_message = "For more information about using this CSS attribute, see http://developer.mozilla.org/en-US/docs/Web/CSS/" + css_attr
+            error_message = "For more information about using this CSS attribute, see http://developer.mozilla.org/en-US/docs/Web/CSS/"+css_attr
             self.logger.error('Error in worksheet "{}", cell {}{} (column "{}"): The value "{}" is invalid, '.
-                              format(ws_name, xls_col, xls_line_num, col_name, value)+error_message,
+                              format(ws_name, xls_col, xls_line_num, col_name, value) + error_message,
                               'INVALID_CSS_VALUE')
             self.errors_found = True
-            
-        return value
 
 
     valid_position = 'expecting an x/y coordinate (i.e., a number with either "%" or "px" after it)'
