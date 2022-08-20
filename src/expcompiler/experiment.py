@@ -9,13 +9,14 @@ class Experiment(object):
     A whole definition of an experiment
     """
 
-    def __init__(self, get_subj_id=False, get_session_id=False, save_results=False,
+    def __init__(self, get_subj_id=False, get_session_id=False, save_results=False, start_of_session_beep=False,
                  results_filename=None, background_color=None, full_screen=None, title=None, instructions=()):
 
         assert isinstance(get_subj_id, bool)
         assert isinstance(get_session_id, bool)
         assert isinstance(full_screen, bool)
         assert isinstance(save_results, bool)
+        assert isinstance(start_of_session_beep, bool)
         assert results_filename is None or isinstance(results_filename, str)
         assert background_color is None or isinstance(background_color, str)
         assert background_color is None or isinstance(background_color, str)
@@ -29,6 +30,7 @@ class Experiment(object):
         self.full_screen = full_screen              # Whether app should run in full screen mode
         self.save_results = save_results            # Whether results should be saved or not
         self.title = title
+        self.start_of_session_beep = start_of_session_beep
         self.instructions = [] if instructions is None else list(instructions)
 
         self.save_steps_without_responses = False

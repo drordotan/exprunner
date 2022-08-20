@@ -84,6 +84,7 @@ class Parser(object):
 
         get_subj_id = self._get_bool_param(df, 'get_subj_id', False)
         get_session_id = self._get_bool_param(df, 'get_session_id', False)
+        start_of_session_beep = self._get_bool_param(df, 'start_of_session_beep', False)
         results_filename_prefix = self._get_param(df, 'results_filename_prefix')
 
         background_color = self._get_param(df, 'background_color')
@@ -96,6 +97,7 @@ class Parser(object):
                                                 results_filename=self._results_filename(results_filename_prefix, get_subj_id, get_session_id),
                                                 background_color=background_color,
                                                 full_screen=self._get_bool_param(df, 'full_screen', False),
+                                                start_of_session_beep=start_of_session_beep,
                                                 title=self._get_param(df, 'title', as_str=True) or '')
         return exp
 

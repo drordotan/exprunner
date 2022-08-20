@@ -3,11 +3,7 @@
   <head>
     <title>${title}</title>
     <meta http-equiv="content-type" content="text/html; charset=UTF-8">
-    <script src="https://unpkg.com/jspsych@7.1.2"></script>
-    <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.0"></script>
-    <script src="https://unpkg.com/@jspsych/plugin-html-button-response@1.1.0"></script>
-    <link href="https://unpkg.com/jspsych@7.1.2/css/jspsych.css" rel="stylesheet" type="text/css" />
-
+${imports}
 	<style>
 ${layout_css}
 	</style>
@@ -26,6 +22,9 @@ ${url_parameters}
         //-- initialize jsPsych --
         //------------------------
 
+        //-- Allows aligning all RTs to a fixed offset
+        let time0 = 0;
+
         // Code for saving results in case this is needed
 
         function generateCSVFile() {
@@ -35,6 +34,11 @@ ${filter_trials_func};
             });
             results_filename = ${results_filename};
             data.response_raw = data.response
+
+            for (var trial_index = 0; trial_index < data.trials.length; trial_index++) {
+                data.trials[trial_index].rt -= time0;
+            }
+
             data.ignore('internal_node_id').ignore('trial_type').ignore('stimulus').ignore('response').localSave('csv', results_filename);
         }
 
@@ -66,8 +70,11 @@ ${filter_trials_func};
 
         let timeline = [];
 
+${preload_sounds}
+
 ${instructions}
 
+${play_start_of_session_beep}
 
 ${trials}
 

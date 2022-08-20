@@ -40,6 +40,7 @@ class ExpGenerator(object):
         self.template = self._load_template()
         self.logger = logger
         self.errors_found = False
+        self.imports_local = True
 
     # ----------------------------------------------------------------------------
     def _load_template(self):
@@ -66,8 +67,11 @@ class ExpGenerator(object):
         self.errors_found = False
         script = self.template
         script = script.replace('${title}', self.generate_title_code(exp))
+        script = script.replace('${imports}', self.generate_imports())
         script = script.replace('${layout_css}', self.generate_layout_code(exp))
         script = script.replace('${url_parameters}', self.generate_url_parameters(exp))
+        script = script.replace('${preload_sounds}', self.generate_preload_sounds(exp))
+        script = script.replace('${play_start_of_session_beep}', self.generate_play_start_of_session_beep(exp))
         script = script.replace('${instructions}', self.generate_instructions_code(exp))
         script = script.replace('${trials}', self.generate_trials_code(exp))
         script = script.replace('${trial_flow}', self.generate_trial_flow_code(exp))
@@ -92,6 +96,38 @@ class ExpGenerator(object):
 
     def generate_title_code(self, exp):
         return html.escape(exp.title or '')
+
+
+    #------------------------------------------------------------
+    #  Code replacing the ${imports} keyword
+    #------------------------------------------------------------
+
+    def generate_imports(self):
+
+        lines = [
+            self._import_script('jspsych-7.1/jspsych.js' if self.imports_local else 'https://unpkg.com/jspsych@7.1.2'),
+            self._import_plugin('html-keyboard-response'),
+            self._import_plugin('html-button-response'),
+            self._import_plugin('audio-keyboard-response'),
+            self._import_plugin('preload'),
+            self._import_css("https://unpkg.com/jspsych@7.1.2/css/jspsych.css" if self.imports_local else "jspsych-7.1/css/jspsych.css"),
+        ]
+
+        return '\n'.join(tabs(1) + line for line in lines)
+
+
+    def _import_plugin(self, plugin_name):
+        if self.imports_local:
+            return '<script src="jspsych-7.1/plugin-{}.js"></script>'.format(plugin_name)
+        else:
+            return '<script src="https://unpkg.com/@jspsych/plugin-{}@1.1.0"></script>'.format(plugin_name)
+
+
+    def _import_script(self, url):
+        return '<script src="{}"></script>'.format(url)
+
+    def _import_css(self, url):
+        return '<link href="{}" rel="stylesheet" type="text/css"/>'.format(url)
 
 
     #------------------------------------------------------------
@@ -173,6 +209,57 @@ class ExpGenerator(object):
 
 
     #------------------------------------------------------------
+    #  Sounds
+    #------------------------------------------------------------
+
+    #------------------------------------------------------------
+    def generate_preload_sounds(self, exp):
+        """
+        Code replacing the ${init_sounds} keyword
+        """
+        if not exp.start_of_session_beep:
+            return ''
+
+        lines = [
+            '//-- Preload audio files',
+            'const preload_audio = {',
+            tabs(1) + "type: jsPsychPreload,",
+            tabs(1) + "auto_preload: true",
+            "}",
+            "timeline.push(preload_audio);",
+        ]
+
+        return '\n'.join(tabs(2) + line for line in lines)
+
+
+    #------------------------------------------------------------
+    def generate_play_start_of_session_beep(self, exp):
+        """
+        Code replacing the ${play_start_of_session_beep} keyword
+        """
+        if not exp.start_of_session_beep:
+            return ''
+
+        lines = [
+            '//-- Play the start-session sound',
+            'const play_start_session_beep = {',
+            tabs(1) + 'type: jsPsychAudioKeyboardResponse,',
+            tabs(1) + 'stimulus: ["start-session-beep.mp3"],',
+            tabs(1) + 'choices: "NO_KEYS",',
+            tabs(1) + 'trial_ends_after_audio: true,',
+            tabs(1) + 'post_trial_gap: 1000,',
+            tabs(1) + 'on_finish: function() {',
+            tabs(2) + 'time0 = jsPsych.getTotalTime();  // This will turn the end-of-beep time into the time=0 offset for time_elapsed in the results file',
+            tabs(1) + '}',
+            '}',
+            'timeline.push(play_start_session_beep);',
+        ]
+
+        return '\n'.join(tabs(2) + line for line in lines)
+
+
+
+    #------------------------------------------------------------
     #  Code replacing the ${instructions} keyword
     #------------------------------------------------------------
 
@@ -183,7 +270,7 @@ class ExpGenerator(object):
         for pos, instruction in enumerate(exp.instructions):
             lst.append(self.generate_instruction(instruction, pos, exp))
 
-        return "\n".join(lst)
+        return '\n'.join(lst)
 
     # ----------------------------------------------------------------------------
     def generate_instruction(self, instruction, pos, exp):
@@ -198,10 +285,10 @@ class ExpGenerator(object):
     # ----------------------------------------------------------------------------
     # noinspection PyUnusedLocal
     def generate_instruction_type(self, pos, text, exp):
-        result = "const instruction{}_data = [\n".format(pos)
-        result += "        { "
-        result += "exp: \"<div>{}</div>\"".format(text)
-        result += " }\n]\n"
+        result = 'const instruction{}_data = [\n'.format(pos)
+        result += tabs(1) + '{ '
+        result += tabs(2) + 'exp: \"<div>{}</div>\"'.format(text)
+        result += tabs(1) + ' }\n]\n'
         return result
 
     # ----------------------------------------------------------------------------
@@ -210,11 +297,11 @@ class ExpGenerator(object):
         type_name = 'instruction{} = '.format(pos)
 
         step_resposne_type = self.check_response_type(response_names, exp)
-        trial_type_response = "jsPsychHtmlKeyboardResponse"
+        trial_type_response = 'jsPsychHtmlKeyboardResponse'
         
         if step_resposne_type is not None and step_resposne_type is not False:
             if step_resposne_type == StepType.html_button_response:
-                trial_type_response = "jsPsychHtmlButtonResponse"
+                trial_type_response = 'jsPsychHtmlButtonResponse'
         
         if step_resposne_type == StepType.html_button_response:
             choices = self.gen_choices_for_button_response_step(step_num, response_names, type_name, exp)
@@ -386,8 +473,8 @@ class ExpGenerator(object):
             trial_type_response = '' if step_type is None else step_type.js_type
 
         result.append('const ' + step_name + ' = {')
-        result.append("    type: {},".format(trial_type_response))
-        result.append("    stimulus: jsPsych.timelineVariable('{}'), ".format(step_name))
+        result.append(tabs(1) + "type: {},".format(trial_type_response))
+        result.append(tabs(1) + "stimulus: jsPsych.timelineVariable('{}'), ".format(step_name))
         
         if step_resposne_type is False:
             self.logger.error(
@@ -397,18 +484,18 @@ class ExpGenerator(object):
             return ""
 
         if step_resposne_type == StepType.html_kb_response or (step_resposne_type is None and step_type == StepType.html_kb_response):
-            result.append("    choices: {},".format(self.step_response_keys(step.num, step.responses, ttype.name, exp)))
+            result.append(tabs(1) + "choices: {},".format(self.step_response_keys(step.num, step.responses, ttype.name, exp)))
 
         elif step_resposne_type == StepType.html_button_response:
             n_specified_frames = sum(exp.responses[r].frame is not None for r in step.responses)
             if n_specified_frames > 0:
                 button_html = [self.generate_button_html(exp.responses[r]) for r in step.responses]
-                result.append('    button_html: [{}],'.format(', '.join("'{}'".format(h) for h in button_html)))
+                result.append(tabs(1) + 'button_html: [{}],'.format(', '.join("'{}'".format(h) for h in button_html)))
 
-            result.append("    choices: {},".format(self.gen_choices_for_button_response_step(step.num, step.responses, ttype.name, exp)))
-            result.append("    on_finish: function(data) {")
-            result.extend(["       " + line for line in self.gen_button_response_step_on_finish_func(step, exp)])
-            result.append("    },")
+            result.append(tabs(1) + "choices: {},".format(self.gen_choices_for_button_response_step(step.num, step.responses, ttype.name, exp)))
+            result.append(tabs(1) + "on_finish: function(data) {")
+            result.extend([tabs(2) + line for line in self.gen_button_response_step_on_finish_func(step, exp)])
+            result.append(tabs(1) + "},")
 
         else:
             self.logger.error('Error in compiler - step type {} not supported'.format(step_type.name), 'MULTIPLE_CONTROL_TYPES_IN_ONE_STEP')
@@ -416,10 +503,10 @@ class ExpGenerator(object):
             return ""
 
         if step.duration is not None:
-            result.append("    trial_duration: {},".format(_to_str(step.duration)))
+            result.append(tabs(1) + "trial_duration: {},".format(_to_str(step.duration)))
 
         if step.delay_after is not None:
-            result.append("    post_trial_gap: {},".format(_to_str(step.delay_after)))
+            result.append(tabs(1) + "post_trial_gap: {},".format(_to_str(step.delay_after)))
 
         result.append('}')
 
@@ -581,18 +668,18 @@ class ExpGenerator(object):
         instructions_indexes = [pos for pos, instruction in enumerate(exp.instructions)]
         if len(instructions_indexes) > 0:
             result.append("if ({}.indexOf(trial.trial_index) != -1) {{".format(json.dumps(instructions_indexes)))
-            result.append("   return false;")
+            result.append(tabs(1) + "return false;")
             result.append("}")
 
         #-- Remove trials without response
         if not exp.save_steps_without_responses:
             result.append("if (trial.rt == null) {")
-            result.append("   return false;")
+            result.append(tabs(1) + "return false;")
             result.append("}")
 
         result.append("return true;")
 
-        return '\n'.join('                ' + line for line in result)
+        return '\n'.join(tabs(4) + line for line in result)
 
 
     #------------------------------------------------------------
