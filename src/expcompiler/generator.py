@@ -270,7 +270,7 @@ class ExpGenerator(object):
         for i_step, step in enumerate(ttype.steps):
 
             #-- Generate the HTML text for all controls of this step (one <div> for each control)
-            controls_html = ''.join([self._one_control_html(ctl_name, trial) for ctl_name in sorted(step.control_names)])
+            controls_html = ''.join([self._one_control_html(ctl_name, trial, exp) for ctl_name in sorted(step.control_names)])
 
             step_line = '{ ' if i_step == 0 else '  '
             step_line += '{}: "{}", '.format(self._step_name(step, ttype), controls_html)
@@ -309,13 +309,21 @@ class ExpGenerator(object):
 
 
     #----------------------------------------------------------------------------
-    def _one_control_html(self, ctl_name, trial):
+    def _one_control_html(self, ctl_name, trial, exp):
         """
         Generate the HTML code (<div>) for a single control in one trial
         """
 
         html_of_css = self._generate_css_style_html_attr(trial.css[ctl_name]) if ctl_name in trial.css else ''
-        ctl_value = trial.control_values[ctl_name] if ctl_name in trial.control_values else ''
+
+        ctl_value = ''
+        if ctl_name in trial.control_values:
+            ctl_value = trial.control_values[ctl_name]
+        elif ctl_name in exp.layout:
+            control = exp.layout[ctl_name]
+            if hasattr(control, 'text') and control.text is not None:
+                ctl_value = control.text
+
         html = "<div class='{}'{}>{}</div>".format(ctl_name, html_of_css, ctl_value)
         return html
 
