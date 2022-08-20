@@ -56,14 +56,22 @@ class Control(object):
 #-----------------------------------------------------------
 class TextControl(Control):
 
-    def __init__(self, name, text, x, y, width, css=None):
+    def __init__(self, name, text, frame, css=None):
+        assert frame is not None and isinstance(frame, Frame)
+
         super().__init__(name)
         self.text = text
-        self.x = x              # Position
-        self.y = y              # Position
-        self.width = width
+        self.frame = frame
         self.css = css or {}    # CSS definitions
 
+#-----------------------------------------------------------
+class Frame(object):
+
+    def __init__(self, pos_left, pos_top, width, height):
+        self.left = pos_left
+        self.top = pos_top
+        self.width = width
+        self.height = height
 
 #===============================================================================================
 # Responses
@@ -80,9 +88,11 @@ class Response(object):
 #-----------------------------------------------------------
 class ClickButtonResponse(Response):
 
-    def __init__(self, resp_id, value, button_text):
+    def __init__(self, resp_id, value, text, frame):
+        assert frame is None or isinstance(frame, Frame)
         super().__init__(resp_id, value)
-        self.button_text = button_text
+        self.text = text
+        self.frame = frame
 
 
 #-----------------------------------------------------------

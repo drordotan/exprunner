@@ -26,6 +26,7 @@ class Parser(object):
         self.reader = reader or expcompiler.xlsreader.XlsReader(filename, logger=self.logger)
         self.errors_found = False
         self.warnings_found = False
+        self._parsing_config = None
 
 
     #-----------------------------------------------------------------------------
@@ -43,6 +44,8 @@ class Parser(object):
         if not self.reader.open():
             self.errors_found = True
             return None
+
+        self._parsing_config = None
 
         return self.parse_experiment()
 
@@ -86,7 +89,6 @@ class Parser(object):
         background_color = self._get_param(df, 'background_color')
         if background_color is not None:
             self._validate_color_code(background_color, expcompiler.xlsreader.XlsReader.ws_general, 'parameter "background_color"')
-
 
         exp = expcompiler.experiment.Experiment(get_subj_id=get_subj_id,
                                                 get_session_id=get_session_id,
@@ -211,11 +213,11 @@ class Parser(object):
             self.errors_found = True
             return
 
-        col_names = _get_col_names(df)
+        existing_cols_to_letter_mapping = _col_names_to_letters(df)
 
         for mandatory_col in ('layout_name', 'type'):
             ok = True
-            if mandatory_col not in col_names:
+            if mandatory_col not in existing_cols_to_letter_mapping:
                 self.logger.error('Error in worksheet "{}": Column "{}" is missing. All layouts were ignored.'
                                   .format(expcompiler.xlsreader.XlsReader.ws_layout, mandatory_col),
                                   'MISSING_COL')
@@ -225,84 +227,108 @@ class Parser(object):
                 return
 
         for i, row in df.iterrows():
-            ctl = self._parse_layout_control(exp, row, i+2, col_names)
+            ctl = self._parse_layout_control(exp, row, i+2, existing_cols_to_letter_mapping)
             if ctl is not None:
                 exp.layout[ctl.name] = ctl
 
 
     #-----------------------------------------------------------------------------
-    def _parse_layout_control(self, exp, row, xls_line_num, col_names):
+    def _parse_layout_control(self, exp, row, xls_line_num, existing_cols_to_letter_mapping):
 
         control_name = str(row['layout_name'])
-        self._validate_control_name(control_name, col_names, xls_line_num)
+        self._validate_control_name(control_name, existing_cols_to_letter_mapping, xls_line_num)
 
         control_type = str(row['type']).lower()
 
         if control_type == 'text':
-            control = self._parse_text_control(control_name, row, xls_line_num, col_names)
+            control = self._parse_text_control(control_name, row, xls_line_num, existing_cols_to_letter_mapping)
 
         else:
             self.logger.error('Error in worksheet "{}", cell {}{}: type="{}" is unknown, only "text" is supported'.
-                              format(expcompiler.xlsreader.XlsReader.ws_layout, col_names['type'], xls_line_num, row.type),
+                              format(expcompiler.xlsreader.XlsReader.ws_layout, existing_cols_to_letter_mapping['type'], xls_line_num, row.type),
                               'INVALID_CONTROL_TYPE')
             self.errors_found = True
             return None
 
         if control.name.lower() in [k.lower() for k in exp.layout.keys()]:
             self.logger.error('Error in worksheet "{}", cell {}{}: a layout item named "{}" was already defined in a previous line. This line was ignored.'.
-                              format(expcompiler.xlsreader.XlsReader.ws_layout, col_names['layout_name'], xls_line_num, control.name), 'DUPLICATE_CONTROL_NAME')
+                              format(expcompiler.xlsreader.XlsReader.ws_layout, existing_cols_to_letter_mapping['layout_name'], xls_line_num, control.name), 'DUPLICATE_CONTROL_NAME')
             self.errors_found = True
             return None
         return control
 
 
     #-----------------------------------------------------------------------------
-    def _validate_control_name(self, control_name, col_names, xls_line_num):
+    def _validate_control_name(self, control_name, existing_cols_to_letter_mapping, xls_line_num):
         if re.match('^[a-zA-Z0-9_]+$', control_name) is not None:
             return
 
         self.logger.error('Error in worksheet "{}", cell {}{}: layout item name "{}" is invalid - only letters, digits, and _ are allowed in the name.'.
-                          format(expcompiler.xlsreader.XlsReader.ws_layout, col_names['layout_name'], xls_line_num, control_name), 'INVALID_CONTROL_NAME')
+                          format(expcompiler.xlsreader.XlsReader.ws_layout, existing_cols_to_letter_mapping['layout_name'], xls_line_num, control_name), 'INVALID_CONTROL_NAME')
         self.errors_found = True
 
     #-----------------------------------------------------------------------------
-    def _parse_text_control(self, control_name, row, xls_line_num, col_names):
+    def _parse_text_control(self, control_name, row, xls_line_num, existing_cols_to_letter_mapping):
 
         text = ""
-        x = 0
-        y = 0
-        width = '100%'
-        css = {}
+
+        frame, frame_cols = self._parse_frame(row, xls_line_num, existing_cols_to_letter_mapping)
+        css, css_cols = self.parse_css(row, xls_line_num, existing_cols_to_letter_mapping)
 
         for col_name in row.index:
-            if col_name.lower() in ('layout_name', 'type', 'explanation'):
+            if col_name.lower() in ('layout_name', 'type', 'explanation') + frame_cols + css_cols:
                 pass
-
-            elif col_name.lower() == 'x':
-                x = self._parse_coord(_nan_to_none(row.x), expcompiler.xlsreader.XlsReader.ws_layout, 'x', col_names['x'], xls_line_num)
-
-            elif col_name.lower() == 'y':
-                y = self._parse_coord(_nan_to_none(row.y), expcompiler.xlsreader.XlsReader.ws_layout, 'y', col_names['y'], xls_line_num)
-
-            elif col_name.lower() == 'width':
-                width = self._parse_coord(_nan_to_none(row.width), expcompiler.xlsreader.XlsReader.ws_layout, 'width', col_names['width'], xls_line_num)
 
             elif col_name.lower() == 'text':
                 text = str(row.text) if 'text' in row and not _isempty(row.text, also_empty_str=False) else ""
 
-            elif col_name.lower().startswith(_css_prefix):
+            elif xls_line_num == 2:  # this error is issued only once per column
+                self.logger.error('Warning in worksheet "{}", column {}: the column name "{}" is invalid and was ignored.'.
+                                  format(expcompiler.xlsreader.XlsReader.ws_layout, existing_cols_to_letter_mapping[col_name], col_name), 'EXCESSIVE_COLUMN')
+                self.warnings_found = True
+
+        return expcompiler.experiment.TextControl(control_name, text, frame, css)
+
+
+    #-----------------------------------------------------------------------------
+    def _parse_frame(self, row, xls_line_num, existing_cols_to_letter_mapping):
+
+        col_names_nocase_to_case = {col_name.lower(): col_name for col_name in row.index}
+        found_cols = []
+
+        coord_attrs = {}
+
+        for attr in ('left', 'top', 'width', 'height'):
+            if attr in col_names_nocase_to_case:
+                coord_attrs[attr] = self._parse_coord(value=_nan_to_none(getattr(row, attr)),
+                                                      ws_name=expcompiler.xlsreader.XlsReader.ws_layout,
+                                                      col_name=col_names_nocase_to_case[attr],
+                                                      xls_col=existing_cols_to_letter_mapping[attr],
+                                                      xls_line_num=xls_line_num)
+                found_cols.append(col_names_nocase_to_case[attr])
+            else:
+                coord_attrs[attr] = None
+
+        return expcompiler.experiment.Frame(coord_attrs['left'], coord_attrs['top'], coord_attrs['width'], coord_attrs['height']), tuple(found_cols)
+
+
+    #-----------------------------------------------------------------------------
+    def parse_css(self, row, xls_line_num, existing_cols_to_letter_mapping):
+
+        css = {}
+        used_cols = []
+
+        for col_name in row.index:
+            if col_name.lower().startswith(_css_prefix):
+                used_cols.append(col_name)
                 css_control_name = col_name.lower()[len(_css_prefix):]
                 value = row[col_name]
-                value = self._parse_css_value(_nan_to_none(value), expcompiler.xlsreader.XlsReader.ws_layout, col_name, col_names[col_name], xls_line_num)
+                value = self._parse_css_value(_nan_to_none(value), expcompiler.xlsreader.XlsReader.ws_layout, col_name,
+                                              existing_cols_to_letter_mapping[col_name], xls_line_num)
                 if not _isempty(value):
                     css[css_control_name] = _to_str(value)
 
-            elif xls_line_num == 2:  # this error is issued only once per column
-                self.logger.error('Warning in worksheet "{}", column {}: the column name "{}" is invalid and was ignored.'.
-                                  format(expcompiler.xlsreader.XlsReader.ws_layout, col_names[col_name], col_name), 'EXCESSIVE_COLUMN')
-                self.warnings_found = True
-
-        return expcompiler.experiment.TextControl(control_name, text, x, y, width, css)
+        return css, tuple(used_cols)
 
 
     #=========================================================================================
@@ -318,20 +344,23 @@ class Parser(object):
         if df is None:
             return
 
-        col_names = _get_col_names(df)
+        existing_cols_to_letter_mapping = _col_names_to_letters(df)
         response_keys = set()
 
         for i, row in df.iterrows():
-            self._parse_one_response(exp, row, i+2, col_names, response_keys)
+            self._parse_one_response(exp, row, i+2, existing_cols_to_letter_mapping, response_keys)
 
 
     #-----------------------------------------------------------------------------
-    def _parse_one_response(self, exp, row, xls_line_num, col_names, response_keys):
+    def _parse_one_response(self, exp, row, xls_line_num, existing_cols_to_letter_mapping, response_keys):
 
         resp_id = row['response_name']
         if _isempty(resp_id):
             self.logger.error('Error in worksheet "{}", cell {}{}: response name was not specified, please specify it'.
-                              format(expcompiler.xlsreader.XlsReader.ws_response, col_names['response_name'], xls_line_num, row.response_name),
+                              format(expcompiler.xlsreader.XlsReader.ws_response,
+                                     existing_cols_to_letter_mapping['response_name'],
+                                     xls_line_num,
+                                     row.response_name),
                               'MISSING_RESPONSE_ID')
             self.errors_found = True
             resp_id = ''
@@ -341,26 +370,29 @@ class Parser(object):
         value = _nan_to_none(row.value)
         if value is None or value == '':
             self.logger.error('Error in worksheet "{}", cell {}{}: value is empty, please specify it'.
-                              format(expcompiler.xlsreader.XlsReader.ws_response, col_names['value'], xls_line_num, value), 'MISSING_RESPONSE_VALUE')
+                              format(expcompiler.xlsreader.XlsReader.ws_response, existing_cols_to_letter_mapping['value'], xls_line_num, value),
+                              'MISSING_RESPONSE_VALUE')
             self.errors_found = True
             value = '(value not specified)'
 
         resp_type = str(row.type).lower()
         if resp_type == 'key':
-            resp = self._parse_key_response(row, xls_line_num, resp_id, value, response_keys, col_names)
+            resp = self._parse_key_response(row, resp_id, value, response_keys, xls_line_num, existing_cols_to_letter_mapping)
 
         elif resp_type == 'button':
-            resp = self._parse_button_response(row, resp_id, value, col_names)
+            resp = self._parse_button_response(row, resp_id, value, xls_line_num, existing_cols_to_letter_mapping)
 
         else:
             self.logger.error('Error in worksheet "{}", cell {}{}: type="{}" is unknown, only "key" and "button" are supported'.
-                              format(expcompiler.xlsreader.XlsReader.ws_response, col_names['type'], xls_line_num, row.type), 'INVALID_RESPONSE_TYPE')
+                              format(expcompiler.xlsreader.XlsReader.ws_response, existing_cols_to_letter_mapping['type'], xls_line_num, row.type),
+                              'INVALID_RESPONSE_TYPE')
             self.errors_found = True
             return None
 
         if resp.resp_id.lower() in [r.lower() for r in exp.responses]:
             self.logger.error('Error in worksheet "{}", cell {}{}: response name="{}" was defined twice, this is invalid'.
-                              format(expcompiler.xlsreader.XlsReader.ws_response, col_names['response_name'], xls_line_num, row.response_name),
+                              format(expcompiler.xlsreader.XlsReader.ws_response, existing_cols_to_letter_mapping['response_name'],
+                                     xls_line_num, row.response_name),
                               'DUPLICATE_RESPONSE_ID')
             self.errors_found = True
             return None
@@ -370,8 +402,8 @@ class Parser(object):
 
 
     #-----------------------------------------------------------------------------
-    def _parse_key_response(self, row, xls_line_num, resp_id, value, response_keys, col_names):
-        if 'key' not in col_names:
+    def _parse_key_response(self, row, resp_id, value, response_keys, xls_line_num, existing_cols_to_letter_mapping):
+        if 'key' not in existing_cols_to_letter_mapping:
             key = '`'
             if 'MISSING_KB_RESPONSE_KEY_COL' not in self.logger.err_codes:
                 self.logger.error('Error in worksheet "{}": Column "key" was not specified, but it must exist for button responses'.
@@ -381,13 +413,15 @@ class Parser(object):
             key = row.key
             if _isempty(key):
                 self.logger.error('Error in worksheet "{}", cell {}{}: key was not specified, please specify it'.
-                                  format(expcompiler.xlsreader.XlsReader.ws_response, col_names['key'], xls_line_num), 'MISSING_KB_RESPONSE_KEY')
+                                  format(expcompiler.xlsreader.XlsReader.ws_response, existing_cols_to_letter_mapping['key'], xls_line_num),
+                                  'MISSING_KB_RESPONSE_KEY')
                 self.errors_found = True
                 key = ''
 
             if key in response_keys:
                 self.logger.error('Error in worksheet "{}", cell {}{}: key="{}" was used in more than one response type'.
-                                  format(expcompiler.xlsreader.XlsReader.ws_response, col_names['key'], xls_line_num, key), 'DUPLICATE_RESPONSE_KEY')
+                                  format(expcompiler.xlsreader.XlsReader.ws_response, existing_cols_to_letter_mapping['key'], xls_line_num, key),
+                                  'DUPLICATE_RESPONSE_KEY')
                 self.errors_found = True
             else:
                 response_keys.add(key)
@@ -396,9 +430,9 @@ class Parser(object):
 
 
     #-----------------------------------------------------------------------------
-    def _parse_button_response(self, row, resp_id, value, col_names):
+    def _parse_button_response(self, row, resp_id, value, xls_line_num, existing_cols_to_letter_mapping):
 
-        if 'text' not in col_names:
+        if 'text' not in existing_cols_to_letter_mapping:
             text = 'N/A'
             if 'MISSING_BUTTON_RESPONSE_TEXT_COL' not in self.logger.err_codes:
                 self.logger.error('Error in worksheet "{}": Column "text" was not specified, but it must exist for button responses'.
@@ -407,9 +441,10 @@ class Parser(object):
         else:
             text = '' if _isempty(row.text) else row.text
 
-        #todo x, y coordinates - possible?
+        frame, frame_cols = self._parse_frame(row, xls_line_num, existing_cols_to_letter_mapping)
 
-        return expcompiler.experiment.ClickButtonResponse(resp_id, value, text)
+        return expcompiler.experiment.ClickButtonResponse(resp_id, value, text, None if len(frame_cols) == 0 else frame)
+
 
     #=========================================================================================
     # Parse the "instructions" sheet
@@ -428,7 +463,7 @@ class Parser(object):
             self.warnings_found = True
             return
 
-        col_names = _get_col_names(df)
+        col_names = _col_names_to_letters(df)
 
         if 'text' not in col_names:
             self.logger.error('Error in worksheet "{}": Please add a column named "text", which specifies the text to show in the instructions page.'
@@ -542,7 +577,7 @@ class Parser(object):
             self.errors_found = True
             return
 
-        col_names = _get_col_names(df)
+        col_names = _col_names_to_letters(df)
         last_type_name = None
 
         for i, row in df.iterrows():
@@ -576,12 +611,12 @@ class Parser(object):
         responses_defined = response_names is not None and len(response_names) > 0
         control_names = self._parse_trial_type_control_names(exp, row, xls_line_num, col_names, responses_defined)
 
-        duration = self._parse_positive_float(row, 'duration', col_names, expcompiler.xlsreader.XlsReader.ws_trial_type,
-                                              xls_line_num, mandatory=False, default_value=None, zero_allowed=False)
-        delay_before = self._parse_positive_float(row, 'delay-before', col_names, expcompiler.xlsreader.XlsReader.ws_trial_type,
-                                                  xls_line_num, mandatory=False, default_value=0, zero_allowed=True)
-        delay_after = self._parse_positive_float(row, 'delay-after', col_names,  expcompiler.xlsreader.XlsReader.ws_trial_type,
-                                                 xls_line_num, mandatory=False, default_value=0, zero_allowed=True)
+        duration = self._parse_positive_number(row, 'duration', col_names, expcompiler.xlsreader.XlsReader.ws_trial_type,
+                                               xls_line_num, mandatory=False, default_value=None, zero_allowed=False, non_int_allowed=False)
+        delay_before = self._parse_positive_number(row, 'delay-before', col_names, expcompiler.xlsreader.XlsReader.ws_trial_type,
+                                                  xls_line_num, mandatory=False, default_value=0, zero_allowed=True, non_int_allowed=False)
+        delay_after = self._parse_positive_number(row, 'delay-after', col_names, expcompiler.xlsreader.XlsReader.ws_trial_type,
+                                                  xls_line_num, mandatory=False, default_value=0, zero_allowed=True, non_int_allowed=False)
 
         if not responses_defined and duration is None:
             self.logger.error('Error in worksheet "{}", line {}: An unlimited-time step without response is invalid. Either "duration" or "responses" must be defined.'
@@ -729,7 +764,8 @@ class Parser(object):
 
 
     #-----------------------------------------------------------------------------
-    def _parse_positive_float(self, row, col_name, col_names, ws_name, xls_line_num, mandatory, default_value, zero_allowed=False):
+    def _parse_positive_number(self, row, col_name, col_names, ws_name, xls_line_num, mandatory, default_value,
+                               zero_allowed=False, non_int_allowed=True):
 
         if col_name not in col_names or _isempty(row[col_name]):
             if mandatory:
@@ -756,7 +792,13 @@ class Parser(object):
                               'INVALID_NUMERIC_VALUE')
             self.errors_found = True
 
-        return fval
+        if not non_int_allowed and int(fval) != fval:
+            self.logger.error('Error in worksheet "{}", cell {}{} (column "{}"): the value "{}" is invalid - only integer numbers are allowed here, no fractions'
+                              .format(ws_name, col_names[col_name], xls_line_num, col_name, value),
+                              'INVALID_NON_INT_VALUE')
+            self.errors_found = True
+
+        return int(fval) if int(fval) == fval else fval
 
 
     #=========================================================================================
@@ -778,7 +820,7 @@ class Parser(object):
             self.errors_found = True
             return
 
-        col_names = _get_col_names(df)
+        col_names = _col_names_to_letters(df)
         if 'type' not in col_names and len(exp.trial_types) > 1:
             self.logger.error('Error in worksheet "{}": When there is more than one trial type, you must specify the "type" column in this worksheet to indicate the type of each trial.'
                               .format(expcompiler.xlsreader.XlsReader.ws_trials), 'NO_TYPE_IN_TRIALS_WS')
@@ -845,8 +887,8 @@ class Parser(object):
                 else:
                     self.logger.error('Error in worksheet "{}", column {}: Column name "{}" is invalid. Specify one of the following:\n'
                                       .format(expcompiler.xlsreader.XlsReader.ws_trials, col_names[col], col) +
-                                      '(1) A layout item name, to specify its value.\n'+
-                                      '(2) {}:LLL.CCC for trial-specific formatting of a layout item, '.format(_css_prefix)+
+                                      '(1) A layout item name, to specify its value.\n' +
+                                      '(2) {}:LLL.CCC for trial-specific formatting of a layout item, '.format(_css_prefix) +
                                       'where LLL is the layout item name and CCC is the specific formatting (CSS) specifier.\n' +
                                       '(3) save:CCC to save a value as-is to the results file (CCC is the column name in the results file)',
                                       'TRIALS_INVALID_COL_NAME')
@@ -941,10 +983,6 @@ class Parser(object):
     def _parse_coord(self, value, ws_name, col_name, xls_col, xls_line_num, validate_message=None):
 
         if value is None:
-            self.logger.error('Error in worksheet "{}", cell {}{} (column "{}"): Empty value is invalid, '.
-                               format(ws_name, xls_col, xls_line_num, col_name) +
-                              'expecting an x/y coordinate (i.e., a number with either "%" or "px" after it)', 'EMPTY_COORD')
-            self.errors_found = True
             return None
 
         #-- Percentages are handled in excel as numeric values
@@ -984,7 +1022,7 @@ class Parser(object):
         temp_col_name = col_name.lower().strip()
 
         # todo drorCR: temp_col_name.startswith("format:")
-        if temp_col_name.find("format:") == -1 or value == None:
+        if temp_col_name.find("format:") == -1 or value is None:
             #-- empty value / not a CSS definition
             return value
         
@@ -1005,8 +1043,8 @@ class Parser(object):
         if not valid_css_attr:
             error_message = "For more information about using this CSS attribute, see http://developer.mozilla.org/en-US/docs/Web/CSS/" + css_attr
             self.logger.error('Error in worksheet "{}", cell {}{} (column "{}"): The value "{}" is invalid, '.
-                            format(ws_name, xls_col, xls_line_num, col_name, value)+error_message,
-                            'INVALID_CSS_VALUE')
+                              format(ws_name, xls_col, xls_line_num, col_name, value)+error_message,
+                              'INVALID_CSS_VALUE')
             self.errors_found = True
             
         return value
@@ -1050,6 +1088,6 @@ def xls_col_letter(n):
 
 
 #-----------------------------------------------------------------------------
-def _get_col_names(df):
+def _col_names_to_letters(df):
     """ Return the column names, and the number of each column as a letter """
     return {c: xls_col_letter(i) for i, c in enumerate(list(df))}

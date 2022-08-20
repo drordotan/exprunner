@@ -114,17 +114,38 @@ class ExpGenerator(object):
         """
         Generate the CSS for a single control
         """
-        result = [
-            ".{}".format(ctl.name)+" {",
-            "    top: {};".format(ctl.y),
-            "    left: {};".format(ctl.x),
-            "    width: {};".format(ctl.width)
-        ]
+        result = [".{}".format(ctl.name)+" {"]
 
-        for k, v in ctl.css.items():
-            result.append("    {}: {};".format(k, v))
+        result.extend('    ' + e for e in self.frame_css_entries(ctl.frame))
+        result.extend('    {}: {};'.format(k, v) for k, v in ctl.css.items())
+
         result.append("}")
+
         return result
+
+
+    #----------------------------------------------------------------------------
+    def frame_css_entries(self, frame):
+        """ Generate the CSS entries for a Frame object """
+
+        result = []
+
+        if frame.top is not None or frame.left is not None:
+            result.append('position: absolute;')
+
+        if frame.top is not None:
+            result.append('top: {};'.format(frame.top))
+
+        if frame.left is not None:
+            result.append('left: {};'.format(frame.left))
+
+        result.append('width: {};'.format('100%' if frame.width is None else frame.width))
+
+        if frame.height is not None:
+            result.append('height: {};'.format(frame.height))
+
+        return result
+
 
     #------------------------------------------------------------
     #  Code replacing the ${instructions} keyword
@@ -150,6 +171,7 @@ class ExpGenerator(object):
         return result
 
     # ----------------------------------------------------------------------------
+    # noinspection PyUnusedLocal
     def generate_instruction_type(self, pos, text, exp):
         result = "const instruction{}_data = [\n".format(pos)
         result += "        { "
@@ -165,7 +187,7 @@ class ExpGenerator(object):
         step_resposne_type = self.check_response_type(response_names, exp)
         trial_type_response = "jsPsychHtmlKeyboardResponse"
         
-        if step_resposne_type is not None and step_resposne_type != False:
+        if step_resposne_type is not None and step_resposne_type is not False:
             if step_resposne_type == StepType.html_button_response:
                 trial_type_response = "jsPsychHtmlButtonResponse"
         
@@ -314,7 +336,7 @@ class ExpGenerator(object):
 
         step_resposne_type = self.check_response_type(step.responses, exp)
 
-        if step_resposne_type is not None and step_resposne_type != False:
+        if step_resposne_type is not None and step_resposne_type is not False:
             if step_resposne_type == StepType.html_button_response:
                 trial_type_response = "jsPsychHtmlButtonResponse"
             else:
@@ -326,17 +348,22 @@ class ExpGenerator(object):
         result.append("    type: {},".format(trial_type_response))
         result.append("    stimulus: jsPsych.timelineVariable('{}'), ".format(step_name))
         
-        if step_resposne_type == False:
+        if step_resposne_type is False:
             self.logger.error(
                  'Error in trial type {}: step #{} responses column contains multiple response types. '.format(ttype.name, step.num) +
                  'This is invalid - the response shoud be either buttons or keys.',
                  'MULTIPLE_CONTROL_TYPES_IN_ONE_STEP')
             return ""
 
-        if step_resposne_type == StepType.html_kb_response or (step_resposne_type == None and step_type == StepType.html_kb_response):
+        if step_resposne_type == StepType.html_kb_response or (step_resposne_type is None and step_type == StepType.html_kb_response):
             result.append("    choices: {},".format(self.step_response_keys(step.num, step.responses, ttype.name, exp)))
 
         elif step_resposne_type == StepType.html_button_response:
+            n_specified_frames = sum(exp.responses[r].frame is not None for r in step.responses)
+            if n_specified_frames > 0:
+                button_html = [self.generate_button_html(exp.responses[r]) for r in step.responses]
+                result.append('    button_html: [{}],'.format(', '.join("'{}'".format(h) for h in button_html)))
+
             result.append("    choices: {},".format(self.gen_choices_for_button_response_step(step.num, step.responses, ttype.name, exp)))
             result.append("    on_finish: function(data) {")
             result.extend(["       " + line for line in self.gen_button_response_step_on_finish_func(step, exp)])
@@ -351,7 +378,7 @@ class ExpGenerator(object):
             result.append("    trial_duration: {},".format(_to_str(step.duration)))
 
         if step.delay_after is not None:
-            result.append("    post_trial_gap: {},".format(_to_str(step.duration)))
+            result.append("    post_trial_gap: {},".format(_to_str(step.delay_after)))
 
         result.append('}')
 
@@ -428,7 +455,7 @@ class ExpGenerator(object):
         if len(responses) == 0:
             return "[]"
         else:
-            return "[" + ", ".join(["'{}'".format(resp.button_text) for resp in responses]) + "]"
+            return "[" + ", ".join(["'{}'".format(resp.text) for resp in responses]) + "]"
 
     # ----------------------------------------------------------------------------
     def gen_button_response_step_on_finish_func(self, step, exp):
@@ -442,7 +469,13 @@ class ExpGenerator(object):
             "data.response_value = response_values[data.response];",
         ]
 
-    # ----------------------------------------------------------------------------
+    #----------------------------------------------------------------------------
+    def generate_button_html(self, btn):
+
+        button_html_css_attrs = self.frame_css_entries(btn.frame)
+        return '<button style="vertical-align: top; {}">%choice%</button>'.format(' '.join(button_html_css_attrs))
+
+    #----------------------------------------------------------------------------
     def step_response_keys(self, step_num, step_responses, type_name, exp):
 
         if step_responses is None:
@@ -478,16 +511,16 @@ class ExpGenerator(object):
             for column in self.trial_col:
                 csv_field.append('%s: jsPsych.timelineVariable("%s")'%(self.trial_col[column], column))
         
-        jsDataAttr = ""
+        js_data_attr = ""
         if len(csv_field) > 0:
-            jsDataAttr = "data: {%s}" % ", ".join(csv_field)
+            js_data_attr = "data: {%s}" % ", ".join(csv_field)
 
         result = [
             'const {}_procedure = '.format(ttype.name),
             '{',
             '  timeline: [{}],'.format(", ".join(step_type_names)),
             '  timeline_variables: {}_data,'.format(ttype.name),
-            jsDataAttr,
+            js_data_attr,
             '}',
             '',
             'timeline.push({}_procedure);\n'.format(ttype.name),
@@ -538,3 +571,10 @@ def _format_value_to_js(value):
         return str(value)
     else:
         return "'{}'".format(value)
+
+
+def css_formatter_exented(attr_name, attr_value):
+    return '{}: {};'.format(attr_name, attr_value)
+
+def css_formatter_short(attr_name, attr_value):
+    return '{}="{}"'.format(attr_name, attr_value.replace('"', '\\"'))
