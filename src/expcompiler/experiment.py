@@ -37,6 +37,7 @@ class Experiment(object):
         self.trial_types = {}   # key = name, value = TrialType
         self.responses = {}     # key = name, value = Response
         self.trials = []        # list of Trial objects
+        self.url_parameters = []
 
 
 #===============================================================================================
@@ -169,3 +170,17 @@ class Trial(object):
         if control_name not in self.css:
             self.css[control_name] = {}
         self.css[control_name][css_attr] = value
+
+#===============================================================================================
+# URL parameters
+#===============================================================================================
+
+class UrlParameter(object):
+
+    def __init__(self, param_name, default_value):
+        self.name = param_name
+        self.default_value = default_value
+
+    @property
+    def js_var_name(self):
+        return "param_" + self.name

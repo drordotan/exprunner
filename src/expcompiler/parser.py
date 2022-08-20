@@ -449,8 +449,8 @@ class Parser(object):
     #=========================================================================================
     # Parse the "instructions" sheet
     #=========================================================================================
-    #-----------------------------------------------------------------------------
 
+    #-----------------------------------------------------------------------------
     def parse_instructions(self, exp):
         """
         Parse the "instructions" worksheet, which contains one line per trial type
@@ -611,12 +611,14 @@ class Parser(object):
         responses_defined = response_names is not None and len(response_names) > 0
         control_names = self._parse_trial_type_control_names(exp, row, xls_line_num, col_names, responses_defined)
 
-        duration = self._parse_positive_number(row, 'duration', col_names, expcompiler.xlsreader.XlsReader.ws_trial_type,
-                                               xls_line_num, mandatory=False, default_value=None, zero_allowed=False, non_int_allowed=False)
-        delay_before = self._parse_positive_number(row, 'delay-before', col_names, expcompiler.xlsreader.XlsReader.ws_trial_type,
-                                                  xls_line_num, mandatory=False, default_value=0, zero_allowed=True, non_int_allowed=False)
-        delay_after = self._parse_positive_number(row, 'delay-after', col_names, expcompiler.xlsreader.XlsReader.ws_trial_type,
-                                                  xls_line_num, mandatory=False, default_value=0, zero_allowed=True, non_int_allowed=False)
+        duration = self._parse_positive_number_or_param(row, 'duration', col_names, expcompiler.xlsreader.XlsReader.ws_trial_type,
+                                                        xls_line_num, mandatory=False, default_value=None, zero_allowed=False, non_int_allowed=False)
+        delay_before = self._parse_positive_number_or_param(row, 'delay-before', col_names, expcompiler.xlsreader.XlsReader.ws_trial_type,
+                                                            xls_line_num, mandatory=False, default_value=0, zero_allowed=True, non_int_allowed=False)
+        delay_after = self._parse_positive_number_or_param(row, 'delay-after', col_names, expcompiler.xlsreader.XlsReader.ws_trial_type,
+                                                           xls_line_num, mandatory=False, default_value=0, zero_allowed=True, non_int_allowed=False)
+
+        exp.url_parameters.extend(v for v in (duration, delay_before, delay_after) if isinstance(v, expcompiler.experiment.UrlParameter))
 
         if not responses_defined and duration is None:
             self.logger.error('Error in worksheet "{}", line {}: An unlimited-time step without response is invalid. Either "duration" or "responses" must be defined.'
@@ -764,8 +766,8 @@ class Parser(object):
 
 
     #-----------------------------------------------------------------------------
-    def _parse_positive_number(self, row, col_name, col_names, ws_name, xls_line_num, mandatory, default_value,
-                               zero_allowed=False, non_int_allowed=True):
+    def _parse_positive_number_or_param(self, row, col_name, col_names, ws_name, xls_line_num, mandatory, default_value,
+                                        zero_allowed=False, non_int_allowed=True):
 
         if col_name not in col_names or _isempty(row[col_name]):
             if mandatory:
@@ -777,6 +779,23 @@ class Parser(object):
                 return default_value
 
         value = row[col_name]
+
+        m = re.match('^param:([a-zA-Z][a-z0-9_]*)=(.+)$', str(value))
+
+        if m is None:
+            #-- A concrete value
+            return self._check_positive_number(value, col_name, col_names, ws_name, xls_line_num, default_value, zero_allowed, non_int_allowed)
+
+        else:
+            #-- A URL parameter
+            param_name = m.group(1)
+            v = self._check_positive_number(m.group(2), col_name, col_names, ws_name, xls_line_num, default_value, zero_allowed, non_int_allowed)
+            return expcompiler.experiment.UrlParameter(param_name, v)
+
+
+    #-----------------------------------------------------------------------------
+    def _check_positive_number(self, value, col_name, col_names, ws_name, xls_line_num, default_value, zero_allowed, non_int_allowed):
+
         try:
             fval = float(value)
         except ValueError:
@@ -1067,6 +1086,9 @@ def _nan_to_none(value):
 #-----------------------------------------------------------------------------
 def _to_str(value):
     """Convert to string; make sure that integers are printed as such (even if their type is float)"""
+    if isinstance(value, expcompiler.experiment.UrlParameter):
+        return value.js_var_name
+
     try:
         value = int(value)
     except ValueError:

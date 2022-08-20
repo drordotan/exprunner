@@ -69,6 +69,7 @@ class ExpGenerator(object):
         script = self.template
         script = script.replace('${title}', self.generate_title_code(exp))
         script = script.replace('${layout_css}', self.generate_layout_code(exp))
+        script = script.replace('${url_parameters}', self.generate_url_parameters(exp))
         script = script.replace('${instructions}', self.generate_instructions_code(exp))
         script = script.replace('${trials}', self.generate_trials_code(exp))
         script = script.replace('${trial_flow}', self.generate_trial_flow_code(exp))
@@ -107,7 +108,7 @@ class ExpGenerator(object):
             if isinstance(control, expobj.TextControl):
                 result.extend(self.generate_single_layout_css_text(control))
 
-        return "\n".join([(" " * 8) + r for r in result])
+        return "\n".join([tabs(2) + r for r in result])
 
     #----------------------------------------------------------------------------
     def generate_single_layout_css_text(self, ctl):
@@ -116,8 +117,8 @@ class ExpGenerator(object):
         """
         result = [".{}".format(ctl.name)+" {"]
 
-        result.extend('    ' + e for e in self.frame_css_entries(ctl.frame))
-        result.extend('    {}: {};'.format(k, v) for k, v in ctl.css.items())
+        result.extend(tabs(1) + e for e in self.frame_css_entries(ctl.frame))
+        result.extend(tabs(1) + '{}: {};'.format(k, v) for k, v in ctl.css.items())
 
         result.append("}")
 
@@ -145,6 +146,29 @@ class ExpGenerator(object):
             result.append('height: {};'.format(frame.height))
 
         return result
+
+
+    #------------------------------------------------------------
+    #  Code replacing the ${url_parameters} keyword
+    #------------------------------------------------------------
+
+    #------------------------------------------------------------
+    def generate_url_parameters(self, exp):
+
+        lines = []
+
+        if len(exp.url_parameters) > 0:
+            lines.append(tabs(2) + 'const url = new URL(window.location.href);')
+            lines.append('')
+
+        for param in exp.url_parameters:
+            lines.append(tabs(2) + 'let param_{} = {};'.format(param.name, param.default_value))
+            lines.append(tabs(2) + "const url_{} = url.searchParams.get('{}');".format(param.name, param.name))
+            lines.append(tabs(2) + 'if (url_{}) {{'.format(param.name))
+            lines.append(tabs(3) + '{} = url_{};'.format(param.js_var_name, param.name))
+            lines.append(tabs(2) + '}')
+
+        return '\n'.join(lines)
 
 
     #------------------------------------------------------------
@@ -573,8 +597,5 @@ def _format_value_to_js(value):
         return "'{}'".format(value)
 
 
-def css_formatter_exented(attr_name, attr_value):
-    return '{}: {};'.format(attr_name, attr_value)
-
-def css_formatter_short(attr_name, attr_value):
-    return '{}="{}"'.format(attr_name, attr_value.replace('"', '\\"'))
+def tabs(n):
+    return '    ' * n
