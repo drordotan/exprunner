@@ -13,6 +13,10 @@ import expcompiler
 
 _css_prefix = 'format:'
 
+_valid_response_key_codes = 'Alt', 'AltGraph', 'CapsLock', 'Control', 'Fn', 'FnLock', 'Hyper', 'Meta', 'NumLock', 'ScrollLock', \
+                            'Shift', 'Super', 'Symbol', 'SymbolLock', 'Enter', 'Tab', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowUp', \
+                            'End', 'Home', 'PageDown', 'PageUp', 'Backspace', 'Clear', 'Copy', 'CrSel', 'Cut', 'Delete', 'EraseEof', 'ExSel', \
+                            'Insert', 'Paste', 'Redo', 'Undo'
 
 #===============================================================================================================================
 class Parser(object):
@@ -428,6 +432,9 @@ class Parser(object):
                 self.errors_found = True
         else:
             key = row.key
+            if key == 'space':
+                key = ' '
+
             if _isempty(key):
                 self.logger.error('Error in worksheet "{}", cell {}{}: key was not specified, please specify it'.
                                   format(expcompiler.xlsreader.XlsReader.ws_response, existing_cols_to_letter_mapping['key'], xls_line_num),
@@ -435,12 +442,21 @@ class Parser(object):
                 self.errors_found = True
                 key = ''
 
+            if len(key) != 1 and key not in _valid_response_key_codes:
+                self.logger.error('Warning in worksheet "{}", cell {}{}: the key code "{}" may be incorrect, please double check it.\n'.
+                                  format(expcompiler.xlsreader.XlsReader.ws_response, existing_cols_to_letter_mapping['key'], xls_line_num, key) +
+                                  'Main supported keys are any single-character key, and: {}\n'.format(', '.join(_valid_response_key_codes)) +
+                                  'For a full list of keys supported by jsPsych, see http://developer.mozilla.org/en-US/docs/Web/API/UI_Events/Keyboard_event_key_values',
+                                  'UNKNOWN_KB_KEY_CODE')
+                self.errors_found = True
+
             if key in response_keys:
                 self.logger.error('Error in worksheet "{}", cell {}{}: key="{}" was used in more than one response type'.
                                   format(expcompiler.xlsreader.XlsReader.ws_response, existing_cols_to_letter_mapping['key'], xls_line_num, key),
                                   'DUPLICATE_RESPONSE_KEY')
                 self.errors_found = True
-            else:
+
+            if key != '':
                 response_keys.add(key)
 
         return expcompiler.experiment.KbResponse(resp_id, value, key)

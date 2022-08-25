@@ -3,7 +3,7 @@ import expcompiler
 
 
 #-----------------------------------------------------------------------------
-def compile_exp(src_fn, target_fn, reader=None, logger=None):
+def compile_exp(src_fn, target_fn, local_imports, reader=None, logger=None):
     """
     Compile an experiment from Excel into a javascript file
 
@@ -14,7 +14,7 @@ def compile_exp(src_fn, target_fn, reader=None, logger=None):
     """
     logger = logger or expcompiler.logger.Logger()
     parser = expcompiler.parser.Parser(src_fn, reader=reader, logger=logger)
-    generator = expcompiler.generator.ExpGenerator(logger=logger)
+    generator = expcompiler.generator.ExpGenerator(logger=logger, imports_local=bool(int(local_imports)))
 
     exp = parser.parse()
     if exp is None:

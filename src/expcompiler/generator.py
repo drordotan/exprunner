@@ -36,11 +36,11 @@ class ExpGenerator(object):
     """
 
     # ----------------------------------------------------------------------------
-    def __init__(self, logger):
+    def __init__(self, logger, imports_local=True):
         self.template = self._load_template()
         self.logger = logger
         self.errors_found = False
-        self.imports_local = True
+        self.imports_local = imports_local
 
     # ----------------------------------------------------------------------------
     def _load_template(self):
@@ -110,7 +110,7 @@ class ExpGenerator(object):
             self._import_plugin('html-button-response'),
             self._import_plugin('audio-keyboard-response'),
             self._import_plugin('preload'),
-            self._import_css("https://unpkg.com/jspsych@7.1.2/css/jspsych.css" if self.imports_local else "jspsych-7.1/css/jspsych.css"),
+            self._import_css("jspsych-7.1/css/jspsych.css" if self.imports_local else "https://unpkg.com/jspsych@7.1.2/css/jspsych.css"),
         ]
 
         return '\n'.join(tabs(1) + line for line in lines)
