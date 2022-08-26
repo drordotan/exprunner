@@ -277,50 +277,55 @@ class LayoutTests(unittest.TestCase):
     # Specify position
     #--------------------------------------------------------
 
-    def test_specify_x_as_pcnt(self):
-        parser, exp = test_parse(layout=[Text('field1', x='50%')], return_exp=True)
+    def test_specify_top_as_pcnt(self):
+        parser, exp = test_parse(layout=[Text('field1', top='50%')], return_exp=True)
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
-        self.assertEqual('50%', list(exp.layout.values())[0].x)
+        self.assertEqual('50%', list(exp.layout.values())[0].frame.top)
 
-    def test_specify_y_as_pcnt(self):
-        parser, exp = test_parse(layout=[Text('field1', y='-50%')], return_exp=True)
+    def test_specify_left_as_pcnt(self):
+        parser, exp = test_parse(layout=[Text('field1', left='-50%')], return_exp=True)
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
-        self.assertEqual('-50%', list(exp.layout.values())[0].y)
+        self.assertEqual('-50%', list(exp.layout.values())[0].frame.left)
 
-    def test_specify_x_as_px(self):
-        parser, exp = test_parse(layout=[Text('field1', x='-50px')], return_exp=True)
+    def test_specify_top_as_px(self):
+        parser, exp = test_parse(layout=[Text('field1', top='-50px')], return_exp=True)
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
-        self.assertEqual('-50px', list(exp.layout.values())[0].x)
+        self.assertEqual('-50px', list(exp.layout.values())[0].frame.top)
 
-    def test_specify_y_as_px(self):
-        parser, exp = test_parse(layout=[Text('field1', y='5000px')], return_exp=True)
+    def test_specify_left_as_px(self):
+        parser, exp = test_parse(layout=[Text('field1', left='5000px')], return_exp=True)
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
-        self.assertEqual('5000px', list(exp.layout.values())[0].y)
+        self.assertEqual('5000px', list(exp.layout.values())[0].frame.left)
 
     def test_specify_width_as_px(self):
         parser, exp = test_parse(layout=[Text('field1', width='30px')], return_exp=True)
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
-        self.assertEqual('30px', list(exp.layout.values())[0].width)
+        self.assertEqual('30px', list(exp.layout.values())[0].frame.width)
 
-    def test_specify_x_in_invalid_format(self):
-        parser = test_parse(layout=[Text('field1', x='5000')])
+    def test_specify_top_in_invalid_format(self):
+        parser = test_parse(layout=[Text('field1', top='5000')])
         self.assertTrue(parser.errors_found)
         self.assertTrue('INVALID_COORD' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
-    def test_specify_y_in_invalid_format(self):
-        parser = test_parse(layout=[Text('field1', y='--500')])
+    def test_specify_left_in_invalid_format(self):
+        parser = test_parse(layout=[Text('field1', left='--500')])
         self.assertTrue(parser.errors_found)
         self.assertTrue('INVALID_COORD' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
-    def test_missing_x(self):
-        parser = test_parse(layout=[Text('field1', x=None)])
-        self.assertTrue(parser.errors_found)
-        self.assertTrue('EMPTY_COORD' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+    def test_warning_when_position_is_relative_and_top_specified_as_percent(self):
+        parser = test_parse(layout=[Text('field1', top='50%', position='relative')])
+        self.assertTrue(parser.warnings_found)
+        self.assertTrue('POSITION_MISMATCHES_TOP_OR_LEFT' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+
+    def test_warning_when_position_is_relative_and_left_specified_as_percent(self):
+        parser = test_parse(layout=[Text('field1', left='50%', position='relative')])
+        self.assertTrue(parser.warnings_found)
+        self.assertTrue('POSITION_MISMATCHES_TOP_OR_LEFT' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
 
     #--------------------------------------------------------
@@ -551,10 +556,20 @@ class TrialTypesTests(unittest.TestCase):
     # Type name
     #--------------------------------------------------------
 
-    def test_invalid_type_name(self):
+    def test_type_name_cannot_be_TYPE(self):
         parser = test_parse(trial_types=[TType('f1,f2', type_name='type')])
         self.assertTrue(parser.errors_found)
         self.assertTrue('TRIAL_TYPE_INVALID_TYPE_NAME' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+
+    def test_type_name_contains_invalid_characters(self):
+        parser = test_parse(trial_types=[TType('f1,f2', type_name='some!thing')])
+        self.assertTrue(parser.errors_found)
+        self.assertTrue('TRIAL_TYPE_INVALID_TYPE_NAME' in parser.logger.err_codes, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+
+    def test_type_name_valid(self):
+        parser = test_parse(trial_types=[TType('ctl1', type_name='soMe_509')], layout=[Text('ctl1', 'text1')])
+        self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
+
 
     #--------------------------------------------------------
     # Fields
@@ -679,10 +694,10 @@ class TrialTypesTests(unittest.TestCase):
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
 
     def test_valid_duration(self):
-        parser, exp = test_parse(trial_types=[TType('a', type_name='t', duration='1.5')], layout=[Text('a', '')], return_exp=True)
+        parser, exp = test_parse(trial_types=[TType('a', type_name='t', duration='1500')], layout=[Text('a', '')], return_exp=True)
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
-        self.assertEqual(1.5, exp.trial_types['t'].steps[0].duration)
+        self.assertEqual(1500, exp.trial_types['t'].steps[0].duration)
 
     def test_duration_0_is_invalid(self):
         parser = test_parse(trial_types=[TType('a', type_name='t', duration='0')], layout=[Text('a', '')])
@@ -728,10 +743,10 @@ class TrialTypesTests(unittest.TestCase):
     #--------------------------------------------------------
 
     def test_valid_delay_before(self):
-        parser, exp = test_parse(trial_types=[TType('a', type_name='t', delay_before='1.5')], layout=[Text('a', '')], return_exp=True)
+        parser, exp = test_parse(trial_types=[TType('a', type_name='t', delay_before='1500')], layout=[Text('a', '')], return_exp=True)
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
-        self.assertEqual(1.5, exp.trial_types['t'].steps[0].delay_before)
+        self.assertEqual(1500, exp.trial_types['t'].steps[0].delay_before)
 
     def test_valid_delay_before_0(self):
         parser, exp = test_parse(trial_types=[TType('a', type_name='t', delay_before=0)], layout=[Text('a', '')], return_exp=True)
@@ -763,10 +778,10 @@ class TrialTypesTests(unittest.TestCase):
 
 
     def test_valid_delay_after(self):
-        parser, exp = test_parse(trial_types=[TType('a', type_name='t', delay_after='1.5')], layout=[Text('a', '')], return_exp=True)
+        parser, exp = test_parse(trial_types=[TType('a', type_name='t', delay_after='1500')], layout=[Text('a', '')], return_exp=True)
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
-        self.assertEqual(1.5, exp.trial_types['t'].steps[0].delay_after)
+        self.assertEqual(1500, exp.trial_types['t'].steps[0].delay_after)
 
     def test_valid_delay_after_0(self):
         parser, exp = test_parse(trial_types=[TType('a', type_name='t', delay_after=0)], layout=[Text('a', '')], return_exp=True)
@@ -897,13 +912,13 @@ class TrialsTests(unittest.TestCase):
 
     def test_valid_css_formatting(self):
         parser, exp = test_parse(trial_types=[TType('f1')], layout=[Text('f1', '')],
-                                 trials=[{'format:f1.font-size': '3'}],
+                                 trials=[{'format:f1.font-size': '3px'}],
                                  return_exp=True)
         self.assertFalse(parser.errors_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertFalse(parser.warnings_found, 'error codes: ' + ','.join(parser.logger.err_codes.keys()))
         self.assertTrue('f1' in exp.trials[0].css)
         self.assertTrue('font-size' in exp.trials[0].css['f1'])
-        self.assertEqual('3', exp.trials[0].css['f1']['font-size'])
+        self.assertEqual('3px', exp.trials[0].css['f1']['font-size'])
 
     def test_css_formatting_for_non_existing_control_is_invalid(self):
         parser, exp = test_parse(trial_types=[TType('f1')], layout=[Text('f1', '')],

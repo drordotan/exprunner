@@ -165,8 +165,8 @@ class ExpGenerator(object):
 
         result = []
 
-        if frame.top is not None or frame.left is not None:
-            result.append('position: absolute;')
+        if frame.position is not None:
+            result.append('position: {};'.format(frame.position))
 
         if frame.top is not None:
             result.append('top: {};'.format(frame.top))

@@ -70,7 +70,8 @@ class TextControl(Control):
 #-----------------------------------------------------------
 class Frame(object):
 
-    def __init__(self, pos_left, pos_top, width, height, border_color):
+    def __init__(self, position, pos_left, pos_top, width, height, border_color):
+        self.position = position
         self.left = pos_left
         self.top = pos_top
         self.width = width
