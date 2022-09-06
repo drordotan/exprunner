@@ -1,5 +1,5 @@
 
-import expcompiler
+import expgen
 
 
 #-----------------------------------------------------------------------------
@@ -12,9 +12,9 @@ def compile_exp(src_fn, target_fn, local_imports, reader=None, logger=None):
     :param reader:
     :param logger:
     """
-    logger = logger or expcompiler.logger.Logger()
-    parser = expcompiler.parser.Parser(src_fn, reader=reader, logger=logger)
-    generator = expcompiler.generator.ExpGenerator(logger=logger, imports_local=bool(int(local_imports)))
+    logger = logger or expgen.logger.Logger()
+    parser = expgen.parser.Parser(src_fn, reader=reader, logger=logger)
+    generator = expgen.generator.ExpGenerator(logger=logger, imports_local=bool(int(local_imports)))
 
     exp = parser.parse()
     if exp is None:

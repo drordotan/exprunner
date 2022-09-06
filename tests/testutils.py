@@ -1,6 +1,6 @@
 
 import pandas as pd
-from expcompiler.parser import Parser
+from expgen.parser import Parser
 
 
 #----------------------------------------------------------------------------------------------

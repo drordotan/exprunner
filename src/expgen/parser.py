@@ -8,8 +8,8 @@ from numbers import Number
 import math
 import cssutils
 
-import expcompiler
-from expcompiler import xlsreader
+import expgen
+from expgen import xlsreader
 
 
 _css_prefix = 'format:'
@@ -28,7 +28,7 @@ class Parser(object):
 
     #-----------------------------------------------------------------------------
     def __init__(self, filename, reader=None, logger=None):
-        self.logger = logger or expcompiler.logger.Logger()
+        self.logger = logger or expgen.logger.Logger()
         self.reader = reader or xlsreader.XlsReader(filename, logger=self.logger)
         self.errors_found = False
         self.warnings_found = False
@@ -99,14 +99,14 @@ class Parser(object):
         if background_color is not None:
             self._validate_color_code(background_color, xlsreader.XlsReader.ws_general, 'parameter "background_color"')
 
-        exp = expcompiler.experiment.Experiment(get_subj_id=get_subj_id,
-                                                get_session_id=get_session_id,
-                                                save_results=self._get_bool_param(df, 'save_results', False),
-                                                results_filename=self._results_filename(results_filename_prefix, get_subj_id, get_session_id),
-                                                background_color=background_color,
-                                                full_screen=self._get_bool_param(df, 'full_screen', False),
-                                                start_of_session_beep=start_of_session_beep,
-                                                title=self._get_param(df, 'title', as_str=True) or '')
+        exp = expgen.experiment.Experiment(get_subj_id=get_subj_id,
+                                           get_session_id=get_session_id,
+                                           save_results=self._get_bool_param(df, 'save_results', False),
+                                           results_filename=self._results_filename(results_filename_prefix, get_subj_id, get_session_id),
+                                           background_color=background_color,
+                                           full_screen=self._get_bool_param(df, 'full_screen', False),
+                                           start_of_session_beep=start_of_session_beep,
+                                           title=self._get_param(df, 'title', as_str=True) or '')
         return exp
 
 
@@ -292,7 +292,7 @@ class Parser(object):
                                   format(xlsreader.XlsReader.ws_layout, existing_cols_to_letter_mapping[col_name], col_name), 'EXCESSIVE_COLUMN')
                 self.warnings_found = True
 
-        return expcompiler.experiment.TextControl(control_name, text, frame, css)
+        return expgen.experiment.TextControl(control_name, text, frame, css)
 
 
     #-----------------------------------------------------------------------------
@@ -346,8 +346,8 @@ class Parser(object):
                               'POSITION_MISMATCHES_TOP_OR_LEFT')
             self.warnings_found = True
 
-        frame = expcompiler.experiment.Frame(position, coord_attrs['left'], coord_attrs['top'], coord_attrs['width'], coord_attrs['height'],
-                                             border_color)
+        frame = expgen.experiment.Frame(position, coord_attrs['left'], coord_attrs['top'], coord_attrs['width'], coord_attrs['height'],
+                                        border_color)
         return frame, tuple(found_cols)
 
 
@@ -479,7 +479,7 @@ class Parser(object):
             if key != '':
                 response_keys.add(key)
 
-        return expcompiler.experiment.KbResponse(resp_id, value, key)
+        return expgen.experiment.KbResponse(resp_id, value, key)
 
 
     #-----------------------------------------------------------------------------
@@ -496,7 +496,7 @@ class Parser(object):
 
         frame, frame_cols = self._parse_frame(row, xls_line_num, existing_cols_to_letter_mapping, ws_name)
 
-        return expcompiler.experiment.ClickButtonResponse(resp_id, value, text, None if len(frame_cols) == 0 else frame)
+        return expgen.experiment.ClickButtonResponse(resp_id, value, text, None if len(frame_cols) == 0 else frame)
 
 
     #=========================================================================================
@@ -554,7 +554,7 @@ class Parser(object):
         if text is None or response_names is None:
             return None
         else:
-            return expcompiler.experiment.Instruction(text, response_names)
+            return expgen.experiment.Instruction(text, response_names)
 
 
     #-----------------------------------------------------------------------------
@@ -641,7 +641,7 @@ class Parser(object):
                 continue
 
             if trial_type not in exp.trial_types:
-                exp.trial_types[trial_type] = expcompiler.experiment.TrialType(trial_type)
+                exp.trial_types[trial_type] = expgen.experiment.TrialType(trial_type)
             exp.trial_types[trial_type].steps.append(step)
             last_type_name = trial_type
 
@@ -671,7 +671,7 @@ class Parser(object):
         delay_after = self._parse_positive_number_or_param(row, 'delay-after', existing_cols_to_letter_mapping, xlsreader.XlsReader.ws_trial_type,
                                                            xls_line_num, mandatory=False, default_value=0, zero_allowed=True, non_int_allowed=False)
 
-        exp.url_parameters.extend(v for v in (duration, delay_before, delay_after) if isinstance(v, expcompiler.experiment.UrlParameter))
+        exp.url_parameters.extend(v for v in (duration, delay_before, delay_after) if isinstance(v, expgen.experiment.UrlParameter))
 
         if not responses_defined and duration is None:
             self.logger.error('Error in worksheet "{}", line {}: An unlimited-time step without response is invalid. Either "duration" or "responses" must be defined.'
@@ -688,7 +688,7 @@ class Parser(object):
         if type_name is None or control_names is None:
             step = None
         else:
-            step = expcompiler.experiment.TrialStep(step_num, control_names, response_names, duration, delay_before, delay_after)
+            step = expgen.experiment.TrialStep(step_num, control_names, response_names, duration, delay_before, delay_after)
 
         return step, type_name
 
@@ -697,12 +697,12 @@ class Parser(object):
     def _parse_trial_type(self, row, last_type_name, xls_line_num, existing_cols_to_letter_mapping):
 
         if 'type_name' not in existing_cols_to_letter_mapping:
-            return expcompiler.experiment.TrialType.default_name
+            return expgen.experiment.TrialType.default_name
 
         type_name = row.type_name
         if _isempty(type_name):
             if last_type_name is None:
-                type_name = expcompiler.experiment.TrialType.default_name
+                type_name = expgen.experiment.TrialType.default_name
                 self.logger.error('Error in worksheet "{}", cell {}{}: "type" was not specified. Type="{}" will be used, but this is invalid.'
                                   .format(xlsreader.XlsReader.ws_trial_type, existing_cols_to_letter_mapping['type'], xls_line_num, type_name),
                                   'TRIAL_TYPE_MISSING')
@@ -854,7 +854,7 @@ class Parser(object):
             #-- A URL parameter
             param_name = m.group(1)
             v = self._check_positive_number(m.group(2), col_name, existing_cols_to_letter_mapping, ws_name, xls_line_num, default_value, zero_allowed, non_int_allowed)
-            return expcompiler.experiment.UrlParameter(param_name, v)
+            return expgen.experiment.UrlParameter(param_name, v)
 
 
     #-----------------------------------------------------------------------------
@@ -1000,7 +1000,7 @@ class Parser(object):
             self.errors_found = True
             return None
 
-        trial = expcompiler.experiment.Trial(type_name)
+        trial = expgen.experiment.Trial(type_name)
         ttype = exp.trial_types[type_name]
 
         #-- Columns indicating the main data of each control (e.g. the text)
@@ -1185,7 +1185,7 @@ def _coord_format(value):
 #-----------------------------------------------------------------------------
 def _to_str(value):
     """Convert to string; make sure that integers are printed as such (even if their type is float)"""
-    if isinstance(value, expcompiler.experiment.UrlParameter):
+    if isinstance(value, expgen.experiment.UrlParameter):
         return value.js_var_name
 
     try:

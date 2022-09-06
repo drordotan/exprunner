@@ -6,7 +6,7 @@ import pandas as pd
 import math
 from numbers import Number
 
-import expcompiler.logger
+import expgen.logger
 
 
 class XlsReader(object):
@@ -27,7 +27,7 @@ class XlsReader(object):
     def __init__(self, filename, logger=None):
         self._filename = filename
         self.worksheets = None
-        self.logger = logger or expcompiler.logger.Logger()
+        self.logger = logger or expgen.logger.Logger()
 
 
     #--------------------------------------------------

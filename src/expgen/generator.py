@@ -9,9 +9,9 @@ import numbers
 
 import json
 
-import expcompiler
-import expcompiler.experiment as expobj
-from expcompiler.parser import _to_str
+import expgen
+import expgen.experiment as expobj
+from expgen.parser import _to_str
 
 
 class StepType(enum.Enum):
@@ -66,6 +66,7 @@ class ExpGenerator(object):
 
         self.errors_found = False
         script = self.template
+        script = script.replace('${expgen_version}', expgen.version_str())
         script = script.replace('${title}', self.generate_title_code(exp))
         script = script.replace('${imports}', self.generate_imports())
         script = script.replace('${layout_css}', self.generate_layout_code(exp))
@@ -555,9 +556,9 @@ class ExpGenerator(object):
             if resp_key not in exp.responses:
                 continue
 
-            if isinstance(exp.responses[resp_key], expcompiler.experiment.KbResponse):
+            if isinstance(exp.responses[resp_key], expgen.experiment.KbResponse):
                 curr_response_type = StepType.html_kb_response
-            elif isinstance(exp.responses[resp_key], expcompiler.experiment.ClickButtonResponse):
+            elif isinstance(exp.responses[resp_key], expgen.experiment.ClickButtonResponse):
                 curr_response_type = StepType.html_button_response
             else:
                 curr_response_type = None
@@ -591,7 +592,7 @@ class ExpGenerator(object):
         if None in responses:
             return []
 
-        values = [_format_value_to_js(r.value) for r in responses if isinstance(r, expcompiler.experiment.ClickButtonResponse)]
+        values = [_format_value_to_js(r.value) for r in responses if isinstance(r, expgen.experiment.ClickButtonResponse)]
         return [
             "response_values = [{}];".format(", ".join(values)),
             "data.response_value = response_values[data.response];",
