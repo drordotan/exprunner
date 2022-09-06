@@ -644,7 +644,7 @@ class ExpGenerator(object):
         if len(saved_data_col_names) > 0:
             result.append(tabs(1) + 'data: {')
             for column in saved_data_col_names:
-                result.append(tabs(2) + '{}: jsPsych.timelineVariable("{}"),'.format(column, saved_data_col_names[column]))
+                result.append(tabs(2) + '"{}": jsPsych.timelineVariable("{}"),'.format(column, saved_data_col_names[column]))
             result.append(tabs(1) + '},')
 
         result.extend([
