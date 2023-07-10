@@ -40,6 +40,7 @@ class Experiment(object):
         self.responses = {}     # key = name, value = Response
         self.trials = []        # list of Trial objects
         self.url_parameters = []
+        self.sounds = {}
 
 
 #===============================================================================================
@@ -141,6 +142,10 @@ class TrialType(object):
                 result.add(c)
         return result
 
+    @property
+    def sound_files(self):
+        return {step.sound_file for step in self.steps if step.sound_file is not None}
+
 
 #-----------------------------------------------------------
 class TrialStep(object):
@@ -148,13 +153,14 @@ class TrialStep(object):
     Defines one step in a trial
     """
 
-    def __init__(self, num, control_names, responses, duration, delay_before, delay_after):
+    def __init__(self, num, control_names, responses, duration, delay_before, delay_after, sound_file):
         self.num = num
         self.control_names = control_names      # Controls presented/active in this step
         self.responses = responses              # Valid responses in this step.
         self.duration = duration                # Duration of presenting the control
         self.delay_before = delay_before        # Delay before this step (in millisec)
         self.delay_after = delay_after          # Delay after this step (in millisec)
+        self.sound_file = sound_file
         #todo RT limit
 
 

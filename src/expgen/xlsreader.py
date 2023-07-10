@@ -17,6 +17,7 @@ class XlsReader(object):
     #-- Worksheet names
     ws_general = 'general'
     ws_instructions = 'instructions'
+    ws_sounds = 'sounds'
     ws_trial_type = 'trial_type'
     ws_layout = 'layout'
     ws_response = 'response'
@@ -104,6 +105,14 @@ class XlsReader(object):
             return None
 
         return self._load_worksheet_as_data_frame(XlsReader.ws_layout, ('layout_name', 'type'))
+
+
+    #--------------------------------------------------
+    def sounds(self):
+        if XlsReader.ws_sounds not in self.worksheets:
+            return None
+
+        return self._load_worksheet_as_data_frame(XlsReader.ws_sounds, ('name', 'filename'))
 
 
     #--------------------------------------------------

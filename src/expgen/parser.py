@@ -72,9 +72,10 @@ class Parser(object):
     #-----------------------------------------------------------------------------
     def parse_experiment(self):
         exp = self.create_experiment()
+        self.parse_sounds(exp)
         self.parse_layout(exp)
         self.parse_responses(exp)
-        self.parse_trial_type(exp)
+        self.parse_trial_types(exp)
         self.parse_instructions(exp)
         self.parse_trials(exp)
 
@@ -188,7 +189,7 @@ class Parser(object):
         if prefix is None or prefix == '':
             prefix = 'results'
 
-        elif re.match('^[a-zA-Z_&$#-]+$', prefix) is None:
+        elif re.match('^[a-zA-Z_][0-9a-zA-Z_&$#-]*$', prefix) is None:
             self.logger.error('Error in worksheet "{}": Invalid "results_filename_prefix" ({})'.
                               format(xlsreader.XlsReader.ws_general, prefix) +
                               ' - it can contain only letters, digits, or the characters -,_,&,#,$',
@@ -615,11 +616,62 @@ class Parser(object):
         return responses
 
     #=========================================================================================
+    # Parse the "sounds" sheet
+    #=========================================================================================
+
+    #-----------------------------------------------------------------------------
+    def parse_sounds(self, exp):
+        """
+        Parse the "sounds" worksheet, which contains one line per sound
+        """
+        df = self.reader.sounds()
+        if df.shape[0] == 0:
+            return
+
+        existing_cols_to_letter_mapping = _col_names_to_letters(df)
+
+        for i, row in df.iterrows():
+
+            sound_code, sound_filename = self._parse_sound_def(exp, row, i+2, existing_cols_to_letter_mapping)
+            if sound_code is None:
+                continue
+
+            if sound_code in exp.sounds:
+                self.logger.error('Error in worksheet "{}", line {}: two sounds cannot have the same name ({})'
+                                  .format(xlsreader.XlsReader.ws_sounds, i+2, sound_code), 'DUPLICATE_SOUNDS')
+
+            exp.sounds[sound_code] = sound_filename
+
+
+    #-----------------------------------------------------------------------------
+    def _parse_sound_def(self, exp, row, xls_line_num, existing_cols_to_letter_mapping):
+        if _isempty(row['name']) and _isempty(row.filename):
+            return None, None
+
+        if row['name'] is None:
+            self.logger.error('Error in worksheet "{}" in {}{}: the sound name is missing'
+                              .format(xlsreader.XlsReader.ws_sounds, existing_cols_to_letter_mapping['sound'], xls_line_num), 'SOUND_NAME_MISSING')
+            return None, None
+
+        if row.filename is None:
+            self.logger.error('Error in worksheet "{}" in {}{}: the sound file name is missing'
+                              .format(xlsreader.XlsReader.ws_sounds, existing_cols_to_letter_mapping['filename'], xls_line_num), 'SOUND_FILENAME_MISSING')
+            return None, None
+
+        ok = self.validate_identifier(row['name'], xlsreader.XlsReader.ws_sounds, existing_cols_to_letter_mapping['name'], xls_line_num,
+                                      err_code='INVALID_SOUND_NAME')
+        if not ok:
+            return None, None
+
+        return row['name'], row.filename
+
+
+    #=========================================================================================
     # Parse the "trial_type" sheet
     #=========================================================================================
 
     #-----------------------------------------------------------------------------
-    def parse_trial_type(self, exp):
+    def parse_trial_types(self, exp):
         """
         Parse the "trial_type" worksheet, which contains one line per trial type
         """
@@ -670,6 +722,8 @@ class Parser(object):
                                                             xls_line_num, mandatory=False, default_value=0, zero_allowed=True, non_int_allowed=False)
         delay_after = self._parse_positive_number_or_param(row, 'delay-after', existing_cols_to_letter_mapping, xlsreader.XlsReader.ws_trial_type,
                                                            xls_line_num, mandatory=False, default_value=0, zero_allowed=True, non_int_allowed=False)
+        sound_file = self._parse_sound_file(row, 'sound', exp, existing_cols_to_letter_mapping, xlsreader.XlsReader.ws_trial_type,
+                                              xls_line_num, mandatory=False)
 
         exp.url_parameters.extend(v for v in (duration, delay_before, delay_after) if isinstance(v, expgen.experiment.UrlParameter))
 
@@ -688,7 +742,7 @@ class Parser(object):
         if type_name is None or control_names is None:
             step = None
         else:
-            step = expgen.experiment.TrialStep(step_num, control_names, response_names, duration, delay_before, delay_after)
+            step = expgen.experiment.TrialStep(step_num, control_names, response_names, duration, delay_before, delay_after, sound_file)
 
         return step, type_name
 
@@ -855,6 +909,31 @@ class Parser(object):
             param_name = m.group(1)
             v = self._check_positive_number(m.group(2), col_name, existing_cols_to_letter_mapping, ws_name, xls_line_num, default_value, zero_allowed, non_int_allowed)
             return expgen.experiment.UrlParameter(param_name, v)
+
+
+    #-----------------------------------------------------------------------------
+    def _parse_sound_file(self, row, col_name, exp, existing_cols_to_letter_mapping, ws_name, xls_line_num, mandatory=False):
+
+        if col_name not in existing_cols_to_letter_mapping or _isempty(row[col_name]):
+            if mandatory:
+                self.logger.error('Error in worksheet "{}", cell {}{}: column "{}" is missing'.
+                                  format(ws_name, existing_cols_to_letter_mapping[col_name], xls_line_num, col_name),
+                                  'MISSING_COL')
+                self.errors_found = True
+                return None
+            else:
+                return None
+
+        sound_code = str(row[col_name])
+
+        if sound_code not in exp.sounds:
+            self.logger.error('Error in worksheet "{}", cell {}{}: sound "{}" was not defined, it should be defined in worksheet "{}"'.
+                              format(ws_name, existing_cols_to_letter_mapping[col_name], xls_line_num, sound_code, xlsreader.XlsReader.ws_sounds),
+                              'MISSING_COL')
+            self.errors_found = True
+            return None
+
+        return sound_code
 
 
     #-----------------------------------------------------------------------------

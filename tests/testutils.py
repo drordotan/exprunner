@@ -60,9 +60,9 @@ class ParserForTests(Parser):
         if self.do_parse_layout:
             super().parse_layout(exp)
 
-    def parse_trial_type(self, exp):
+    def parse_trial_types(self, exp):
         if self.do_parse_ttype:
-            super().parse_trial_type(exp)
+            super().parse_trial_types(exp)
 
     def parse_trials(self, exp):
         if self.do_parse_trials:

@@ -225,10 +225,21 @@ class ExpGenerator(object):
             '//-- Preload audio files',
             'const preload_audio = {',
             tabs(1) + "type: jsPsychPreload,",
-            tabs(1) + "auto_preload: true",
-            "}",
-            "timeline.push(preload_audio);",
+            tabs(1) + "auto_preload: true,"
         ]
+
+        if len(exp.sounds) > 0:
+            lines.append(tabs(1) + 'audio: [{}],'.format(', '.join(['"{}"'.format(s) for s in exp.sounds.values()])))
+
+        lines.append('}')
+        lines.append('timeline.push(preload_audio);')
+
+        if len(exp.sounds) > 0:
+            lines.append('')
+            lines.append('//-- Sounds to be played during the experiment')
+
+        for sound_code, sound_filename in exp.sounds.items():
+            lines.append("const sound_{} = new Audio('{}');".format(sound_code, sound_filename))
 
         return '\n'.join(tabs(2) + line for line in lines)
 
@@ -508,6 +519,11 @@ class ExpGenerator(object):
 
         if step.delay_after is not None:
             result.append(tabs(1) + "post_trial_gap: {},".format(_to_str(step.delay_after)))
+
+        if step.sound_file is not None:
+            result.append(tabs(1) + "on_start: function(data){")
+            result.append(tabs(2) + "sound_{}.play();".format(step.sound_file))
+            result.append(tabs(1) + "}")
 
         result.append('}')
 
