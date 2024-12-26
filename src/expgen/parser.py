@@ -177,8 +177,10 @@ class Parser(object):
             return False
 
         else:
-            self.logger.error('Error in worksheet "{}": The value of parameter "{}" is "{}"; this is invalid and was ignored. Please specify either "Y" or "N"'.
-                              format(xlsreader.XlsReader.ws_general, param_name, value), 'INVALID_BOOL_PARAM')
+            self.logger.error('Error in worksheet "{}": The value of parameter "{}" is "{}"; '
+                              .format(xlsreader.XlsReader.ws_general, param_name, value) +
+                              'this is invalid and was ignored. Please specify either "Y" or "N"',
+                              'INVALID_BOOL_PARAM')
             self.errors_found = True
             return default_value
 
@@ -467,7 +469,8 @@ class Parser(object):
                 self.logger.error('Warning in worksheet "{}", cell {}{}: the key code "{}" may be incorrect, please double check it.\n'.
                                   format(xlsreader.XlsReader.ws_response, existing_cols_to_letter_mapping['key'], xls_line_num, key) +
                                   'Main supported keys are any single-character key, and: {}\n'.format(', '.join(_valid_response_key_codes)) +
-                                  'For a full list of keys supported by jsPsych, see http://developer.mozilla.org/en-US/docs/Web/API/UI_Events/Keyboard_event_key_values',
+                                  'For a full list of keys supported by jsPsych, ' +
+                                  'see http://developer.mozilla.org/en-US/docs/Web/API/UI_Events/Keyboard_event_key_values',
                                   'UNKNOWN_KB_KEY_CODE')
                 self.errors_found = True
 
@@ -527,8 +530,8 @@ class Parser(object):
             return
 
         if 'responses' not in existing_cols_to_letter_mapping:
-            self.logger.error('Error in worksheet "{}": Please add a column named "responses", which specifies the response alternatives in each instructions page.'
-                              .format(xlsreader.XlsReader.ws_instructions),
+            self.logger.error('Error in worksheet "{}": Please add a column named "responses", '.format(xlsreader.XlsReader.ws_instructions) +
+                              'which specifies the response alternatives in each instructions page.',
                               'INSTRUCTIONS_MISSING_RESPONSE_COL')
             self.errors_found = True
             return
@@ -608,7 +611,7 @@ class Parser(object):
         response_types = set([type(exp.responses[r]) for r in responses])
         if len(response_types) > 1:
             self.logger.error('Warning in worksheet "{}", cell {}{}: the response/s "{}" are of different types (keyboard, mouse, etc.).'
-                              .format(xlsreader.XlsReader.ws_trial_type, existing_cols_to_letter_mapping['responses'], xls_line_num, ",".join(responses))+
+                              .format(xlsreader.XlsReader.ws_trial_type, existing_cols_to_letter_mapping['responses'], xls_line_num, ",".join(responses)) +
                               'All responses in an instruction page must be of the same type.',
                               'INSTRUCTIONS_WITH_MULTIPLE_RESPONSE_TYPES')
             self.errors_found = True
@@ -625,14 +628,14 @@ class Parser(object):
         Parse the "sounds" worksheet, which contains one line per sound
         """
         df = self.reader.sounds()
-        if df.shape[0] == 0:
+        if df is None or df.shape[0] == 0:
             return
 
         existing_cols_to_letter_mapping = _col_names_to_letters(df)
 
         for i, row in df.iterrows():
 
-            sound_code, sound_filename = self._parse_sound_def(exp, row, i+2, existing_cols_to_letter_mapping)
+            sound_code, sound_filename = self._parse_sound_def(row, i + 2, existing_cols_to_letter_mapping)
             if sound_code is None:
                 continue
 
@@ -644,7 +647,7 @@ class Parser(object):
 
 
     #-----------------------------------------------------------------------------
-    def _parse_sound_def(self, exp, row, xls_line_num, existing_cols_to_letter_mapping):
+    def _parse_sound_def(self, row, xls_line_num, existing_cols_to_letter_mapping):
         if _isempty(row['name']) and _isempty(row.filename):
             return None, None
 
@@ -723,7 +726,7 @@ class Parser(object):
         delay_after = self._parse_positive_number_or_param(row, 'delay-after', existing_cols_to_letter_mapping, xlsreader.XlsReader.ws_trial_type,
                                                            xls_line_num, mandatory=False, default_value=0, zero_allowed=True, non_int_allowed=False)
         sound_file = self._parse_sound_file(row, 'sound', exp, existing_cols_to_letter_mapping, xlsreader.XlsReader.ws_trial_type,
-                                              xls_line_num, mandatory=False)
+                                            xls_line_num, mandatory=False)
 
         exp.url_parameters.extend(v for v in (duration, delay_before, delay_after) if isinstance(v, expgen.experiment.UrlParameter))
 
@@ -735,7 +738,7 @@ class Parser(object):
 
         if delay_after is not None and 0 < delay_after <= 3:
             self.logger.error('Warning in worksheet "{}" in {}{}: the specified post-trial delay ({}) is very small. '
-                              .format(xlsreader.XlsReader.ws_trial_type, existing_cols_to_letter_mapping['delay-after'], xls_line_num, delay_after)+
+                              .format(xlsreader.XlsReader.ws_trial_type, existing_cols_to_letter_mapping['delay-after'], xls_line_num, delay_after) +
                               'Note that this value should be specified in milliseconds.',
                               'WARN_POST_TRIAL_DELAY_SMALL')
 
@@ -1042,16 +1045,16 @@ class Parser(object):
 
                 if col.lower().startswith(_css_prefix):
                     self.logger.error('Error in worksheet "{}", column {}: Column name "{}" is invalid. To specify the formatting of a layout item,'
-                                      .format(xlsreader.XlsReader.ws_trials, existing_cols_to_letter_mapping[col], col)+
-                                      ' the column name should be {}:LLL.CCC, where LLL is the layout item name and '.format(_css_prefix)+
+                                      .format(xlsreader.XlsReader.ws_trials, existing_cols_to_letter_mapping[col], col) +
+                                      ' the column name should be {}:LLL.CCC, where LLL is the layout item name and '.format(_css_prefix) +
                                       'CCC is the specific formatting (CSS) specifier',
                                       'TRIALS_INVALID_COL_NAME')
                 else:
                     self.logger.error('Error in worksheet "{}", column {}: Column name "{}" is invalid. Specify one of the following:\n'
-                                      .format(xlsreader.XlsReader.ws_trials, existing_cols_to_letter_mapping[col], col)+
-                                      '(1) A layout item name, to specify its value.\n'+
-                                      '(2) {}:LLL.CCC for trial-specific formatting of a layout item, '.format(_css_prefix)+
-                                      'where LLL is the layout item name and CCC is the specific formatting (CSS) specifier.\n'+
+                                      .format(xlsreader.XlsReader.ws_trials, existing_cols_to_letter_mapping[col], col) +
+                                      '(1) A layout item name, to specify its value.\n' +
+                                      '(2) {}:LLL.CCC for trial-specific formatting of a layout item, '.format(_css_prefix) +
+                                      'where LLL is the layout item name and CCC is the specific formatting (CSS) specifier.\n' +
                                       '(3) save:CCC to save a value as-is to the results file (CCC is the column name in the results file)',
                                       'TRIALS_INVALID_COL_NAME')
 
@@ -1123,7 +1126,7 @@ class Parser(object):
         valid = re.match('^[a-zA-Z0-9_]+$', str(value).lower()) is not None
 
         if not valid:
-            self.logger.error('WARNING in worksheet "{}", in {}{}: the value "{}" is not a valid identifier. '.format(ws_name, row, col, value)+
+            self.logger.error('WARNING in worksheet "{}", in {}{}: the value "{}" is not a valid identifier. '.format(ws_name, row, col, value) +
                               'Valid identifiers contains only letters, digits, and the _ character, and start with a letter.',
                               err_code)
             self.errors_found = True
@@ -1215,6 +1218,7 @@ class Parser(object):
 
 
     #-----------------------------------------------------------------------------
+    # noinspection PyBroadException, PyProtectedMember
     def _validate_css_attr_value(self, css_attr, value, ws_name, xls_col, xls_line_num, col_name):
 
         try:
